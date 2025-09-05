@@ -138,3 +138,6 @@ X --> Z[结束]
    1. [glinet-tailscale-updater](https://github.com/Admonstrator/glinet-tailscale-updater)
    2. [golang](https://github.com/golang/go)
    3. [UPX](https://github.com/upx/upx)
+
+## Star History
+[![Star History Chart](https://api.star-history.com/svg?repos=CH3NGYZ/small-tailscale-openwrt&type=Date)](https://www.star-history.com/#CH3NGYZ/small-tailscale-openwrt&Date)
