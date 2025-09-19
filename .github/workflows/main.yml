@@ -184,8 +184,8 @@ jobs:
             `${{ env.BUILD_PLATFORMS }}`
           
             ⚙️  **内容说明**：
-            - 已合并并压缩的运行文件：包含 `tailscale` 和 `tailscaled` 的 [联合二进制](https://tailscale.com/kb/1207/small-tailscale)
-            - *注意：由于 UPX 不支持 `mips64` 与 `mips64le`，这两个架构版本为未压缩原始文件*
+            - 每个架构只生成一个联合二进制文件，通过改名即可分别作为`tailscale`（前台程序）和`tailscaled`（后台程序）运行。
+            - *注意：由于 UPX[目前不支持, 也没有计划支持](https://github.com/upx/upx/issues/272#issuecomment-1250010942)`mips64`与`mips64le`架构, 此release中这两个架构的可执行文件为`未压缩`的状态*
           
             📄 **校验方式**：
             ```bash
@@ -198,17 +198,17 @@ jobs:
             chmod +x /path/to/tailscaled-linux-amd64
             ln -s /path/to/tailscaled-linux-amd64 /usr/bin/tailscale
             ln -s /path/to/tailscaled-linux-amd64 /usr/bin/tailscaled
-            tailscaled
-            tailscale up
+            tailscaled & # 服务进程需后台运行
+            tailscale up # 等待服务进程运行10秒后再运行(等待服务进程与tailscale服务器连接)
             ```
 
             📦 **附带文件**：
             | 文件名               | 说明                  |
             |----------------------|-----------------------|
-            | tailscaled_linux_*    | 不同架构对应的可执行文件 |
+            | tailscaled_linux_*    | 不同架构的可执行文件 |
             | SHA256SUMS.txt        | SHA256 校验文件        |
             | MD5SUMS.txt           | MD5 校验文件           |
-            | version.txt           | 当前版本标识          |
+            | version.txt           | 当前版本          |
 
             📜 **更新日志**：
             [点此查看](https://tailscale.com/changelog)
