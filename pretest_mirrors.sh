@@ -157,20 +157,18 @@ fi
 
 
 log_warn "⚠️  测试代理下载tailscale可执行文件花费的时间中, 每个代理最长需要 $TIME_OUT 秒, 安装时仅测试5个正常连通的代理，请耐心等待......"
+
 # 主流程：测试所有镜像，限制最多5个有效代理
 total=$(grep -cve '^\s*$' "$MIRROR_LIST")  # 排除空行
 index=0
-valid_count=0  # 新增计数器，用于计数有效代理
 
 while read -r mirror; do
     [[ -n "$mirror" && "$mirror" == http* ]] || continue
     index=$((index + 1))
     test_mirror "$mirror" "$index/$total"
     
-    # 如果找到了有效的代理，则增加计数器
-    if [ -s "$TMP_VALID_MIRRORS" ]; then
-        valid_count=$((valid_count + 1))
-    fi
+    # 读取 TMP_VALID_MIRRORS 文件行数
+    valid_count=$(wc -l < "$TMP_VALID_MIRRORS" 2>/dev/null || echo 0)
     
     # 如果已经找到5个有效代理，则跳出循环
     if [ "$valid_count" -ge 5 ]; then
@@ -178,6 +176,7 @@ while read -r mirror; do
         break
     fi
 done < "$MIRROR_LIST"
+
 
 
 # 排序并保存最佳镜像
