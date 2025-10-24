@@ -2,7 +2,7 @@ name: Sync and Build Tailscale
 
 on:
   schedule:
-    - cron: "10 23 * * *"
+    - cron: '10 23 * * *'
   workflow_dispatch:
     inputs:
       versions:
@@ -15,8 +15,8 @@ permissions:
   contents: write
 
 env:
-  REPO_OFFICIAL: "tailscale/tailscale"
-  BUILD_PLATFORMS: "amd64 386 arm arm64 mips mipsle mips64 mips64le"
+  REPO_OFFICIAL: 'tailscale/tailscale'
+  BUILD_PLATFORMS: 'amd64 386 arm arm64 mips mipsle mips64 mips64le'
   GO_BUILD_FLAGS: "-tags ts_include_cli -ldflags='-s -w'"
 
 jobs:
@@ -36,7 +36,7 @@ jobs:
         run: |
           echo "===> 输入参数: ${{ github.event.inputs.versions }}"
           input="${{ github.event.inputs.versions }}"
-      
+
           if [ -z "$input" ]; then
             tag=$(head -n1 all_tags.txt)
             tag=${tag#v}  # 去除前缀 v（如果有）
@@ -45,9 +45,8 @@ jobs:
             exit 0
           fi
 
-      
           echo "===> 开始解析版本范围：$input"
-      
+
           declare -A versions
           IFS=',' read -ra parts <<< "$input"
           for part in "${parts[@]}"; do
@@ -65,22 +64,20 @@ jobs:
               versions["v$part"]=1
             fi
           done
-      
+
           echo "===> 收集到版本（未排序）:"
           for v in "${!versions[@]}"; do
             echo "  - $v"
           done
-      
+
           all_versions_sorted=$(for v in "${!versions[@]}"; do echo "$v" | sed 's/^v//'; done | sort -V)
           echo "===> 排序后版本:"
           echo "$all_versions_sorted"
-          
+
           jq_array=$(printf '%s\n' $all_versions_sorted | jq -R . | jq -s .)
           echo "===> 生成 matrix:"
           echo "$jq_array" | jq -c
           echo "matrix=$(echo "$jq_array" | jq -c)" >> "$GITHUB_OUTPUT"
-
-
 
   build_and_release:
     needs: prepare_versions
@@ -88,8 +85,8 @@ jobs:
     strategy:
       matrix:
         version: ${{ fromJson(needs.prepare_versions.outputs.matrix) }}
-      fail-fast: false  # 确保即使某个版本失败，其他版本继续执行
-      max-parallel: 1
+      fail-fast: false # 确保即使某个版本失败，其他版本继续执行
+      max-parallel: 8
     env:
       TAG: v${{ matrix.version }}
     steps:
@@ -109,6 +106,26 @@ jobs:
         with:
           repository: ${{ env.REPO_OFFICIAL }}
           ref: ${{ env.TAG }}
+
+      - name: Get changelog for ${{ env.TAG }}
+        id: get_changelog
+        run: |
+          # 使用 GitHub API 获取 release 信息
+          response=$(curl -s "https://api.github.com/repos/${{ env.REPO_OFFICIAL }}/releases/tags/${{ env.TAG }}")
+
+          # 提取 release notes
+          changelog=$(echo "$response" | jq -r '.body')
+
+          # 如果没有找到发布说明，设置默认值
+          if [[ "$changelog" == "null" || -z "$changelog" ]]; then
+            changelog="No release notes available for this version."
+          fi
+
+          echo "Changelog for ${{ env.TAG }}:"
+          echo "$changelog"
+
+          # 将 changelog 保存为输出，以便后续步骤使用
+          echo "changelog=$changelog" >> $GITHUB_ENV
 
       - name: Setup Go environment
         uses: actions/setup-go@v5
@@ -131,9 +148,10 @@ jobs:
         if: env.skip != 'true'
         run: |
           echo "${{ env.TAG }}" > version.txt
+          mkdir -p ./build
           for arch in ${{ env.BUILD_PLATFORMS }}; do
             echo "Building for $arch..."
-            binary_name="tailscaled_linux_${arch}"
+            binary_name="./build/tailscaled-linux-${arch}.build"
 
             export CGO_ENABLED=0
             export GOOS=linux
@@ -145,15 +163,30 @@ jobs:
                 ;;
             esac
 
-            ./build_dist.sh --extra-small --box -o "$binary_name" ./cmd/tailscaled
+            go build -o "$binary_name" ${{ env.GO_BUILD_FLAGS }} ./cmd/tailscaled
+
+            if [ ! -f "$binary_name" ]; then
+              echo "❌  编译失败: $binary_name 不存在"
+              exit 1
+            fi
+          done
+
+      - name: Compress binaries
+        if: env.skip != 'true'
+        run: |
+          mkdir -p ./upx_compress
+          for arch in ${{ env.BUILD_PLATFORMS }}; do
+            binary_name="./build/tailscaled-linux-${arch}.build"
+            compressed_name="./upx_compress/tailscaled-linux-${arch}"
 
             case "$arch" in
               mips64|mips64le)
                 echo "⚠️  跳过 $arch 的 UPX 压缩"
+                cp "$binary_name" "$compressed_name"
                 ;;
               *)
                 if [[ -f "$binary_name" ]]; then
-                  upx --lzma --best --no-progress "$binary_name"
+                  upx --lzma --best --no-progress "$binary_name" -o "$compressed_name"
                 else
                   echo "❌  编译失败: $binary_name 不存在"
                 fi
@@ -164,59 +197,107 @@ jobs:
       - name: Generate checksums
         if: env.skip != 'true'
         run: |
-          sha256sum tailscaled_* > SHA256SUMS.txt
-          md5sum tailscaled_* > MD5SUMS.txt
+          sha256sum ./build/tailscaled-* > SHA256SUMS.txt
+          md5sum ./build/tailscaled-* > MD5SUMS.txt
+          sha256sum ./upx_compress/tailscaled-* > SHA256SUMS.txt
+          md5sum ./upx_compress/tailscaled-* > MD5SUMS.txt
+
+          sed -i 's|./upx_compress/||g' SHA256SUMS.txt
+          sed -i 's|./build/||g' SHA256SUMS.txt
+          sed -i 's|./upx_compress/||g' MD5SUMS.txt
+          sed -i 's|./build/||g' MD5SUMS.txt
+
           cat SHA256SUMS.txt
           cat MD5SUMS.txt
+
+      - name: Wait previous version release
+        if: env.skip != 'true'
+        run: |
+          echo "=== 当前 Matrix 版本列表 ==="
+          echo '${{ needs.prepare_versions.outputs.matrix }}' | jq -r '.[]'
+
+          # 解析 matrix 为 bash 数组
+          readarray -t matrix_versions < <(echo '${{ needs.prepare_versions.outputs.matrix }}' | jq -r '.[]')
+
+          # 找出当前版本在 matrix 中的前一个版本
+          prev_version=""
+          for i in "${!matrix_versions[@]}"; do
+            if [ "${matrix_versions[$i]}" == "${{ matrix.version }}" ]; then
+              if [ $i -gt 0 ]; then
+                prev_version="${matrix_versions[$i-1]}"
+              fi
+              break
+            fi
+          done
+
+          if [ -z "$prev_version" ]; then
+            echo "当前版本是最早版本，无需等待，直接发布 ${{ matrix.version }}"
+            exit 0
+          fi
+
+          echo "当前版本之前的 Matrix 版本: $prev_version"
+
+          # 循环等待，直到该版本 release 已存在
+          until curl -s -f "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/v$prev_version" >/dev/null 2>&1; do
+            echo "⏳ 等待前一个版本 v$prev_version 的 release 创建..."
+            sleep 5
+          done
+
+          echo "✅ 前一个版本 v$prev_version 的 release 已存在 — 可以发布当前版本 ${{ matrix.version }}"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         if: env.skip != 'true'
         with:
           tag_name: ${{ env.TAG }}
-          name: "Tailscale ${{ env.TAG }}"
+          name: 'Tailscale ${{ env.TAG }}'
           body: |
             ## 🚀 Tailscale ${{ env.TAG }} UPX压缩版发布
-            
+
             [![Downloads](https://img.shields.io/github/downloads/CH3NGYZ/small-tailscale-openwrt/${{ env.TAG }}/total)](https://github.com/CH3NGYZ/small-tailscale-openwrt/releases/${{ env.TAG }})
-            
+
             🧩 **支持架构**：
             `${{ env.BUILD_PLATFORMS }}`
-          
+
             ⚙️  **内容说明**：
             - 每个架构只生成一个联合二进制文件，通过改名即可分别作为`tailscale`（前台程序）和`tailscaled`（后台程序）运行。
             - *注意：由于 UPX[目前不支持, 也没有计划支持](https://github.com/upx/upx/issues/272#issuecomment-1250010942)`mips64`与`mips64le`架构, 此release中这两个架构的可执行文件为`未压缩`的状态*
-          
+
             📄 **校验方式**：
             ```bash
             sha256sum -c SHA256SUMS.txt
             md5sum -c MD5SUMS.txt
             ```
-            
+
             🔧  **快速启动**：
             ```bash
             chmod +x /path/to/tailscaled-linux-amd64
             ln -s /path/to/tailscaled-linux-amd64 /usr/bin/tailscale
             ln -s /path/to/tailscaled-linux-amd64 /usr/bin/tailscaled
             tailscaled & # 服务进程需后台运行
-            tailscale up # 等待服务进程运行10秒后再运行(等待服务进程与tailscale服务器连接)
+            tailscale up # 等待服务进程运行几秒之后再运行(等待服务进程与tailscale服务器连接)
             ```
 
             📦 **附带文件**：
             | 文件名               | 说明                  |
             |----------------------|-----------------------|
-            | tailscaled_linux_*    | 不同架构的可执行文件 |
+            | tailscaled-linux-ARCH    | 不同架构已压缩的可执行文件 |
+            | tailscaled-linux-ARCH.build | 不同架构未压缩的可执行文件 |
             | SHA256SUMS.txt        | SHA256 校验文件        |
             | MD5SUMS.txt           | MD5 校验文件           |
             | version.txt           | 当前版本          |
 
             📜 **更新日志**：
-            [点此查看](https://tailscale.com/changelog)
-            
+            <details>
+              <summary>点击查看更新日志</summary>
+              ${{ env.changelog }}
+            </details>
+
           draft: false
           prerelease: false
           files: |
-            tailscaled_*
+            ./build/tailscaled-*
+            ./upx_compress/tailscaled-*
             version.txt
             SHA256SUMS.txt
             MD5SUMS.txt

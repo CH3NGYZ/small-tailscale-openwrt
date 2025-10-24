@@ -123,7 +123,7 @@ install_tailscale() {
     local mirror_list=$3
 
     local arch="$ARCH"
-    local pkg_name="tailscaled_linux_$arch"
+    local pkg_name="tailscaled-linux-$arch"
     local tmp_file="/tmp/tailscaled.$$"
     local download_base="CH3NGYZ/small-tailscale-openwrt/releases/download/$version/"
 
