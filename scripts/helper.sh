@@ -1,5 +1,5 @@
 #!/bin/sh
-SCRIPT_VERSION="v1.0.91"
+SCRIPT_VERSION="v1.0.92"
 
 # 检查并引入 /etc/tailscale/tools.sh 文件
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh
@@ -92,7 +92,7 @@ handle_choice() {
                 [ -p "$pipe" ] && rm -f "$pipe"
                 mkfifo "$pipe"
 
-                log_info "🚀  执行 tailscale up, 正在监控输出..."
+                log_info "🚀  执行 tailscale up, 正在生成登录链接..."
 
                 # 后台运行 tailscale up
                 (

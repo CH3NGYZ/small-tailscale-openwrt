@@ -85,19 +85,30 @@ jobs:
     strategy:
       matrix:
         version: ${{ fromJson(needs.prepare_versions.outputs.matrix) }}
-      fail-fast: true # 某个版本失败，其他版本停止运行
+      fail-fast: true
       max-parallel: 16
     env:
       TAG: v${{ matrix.version }}
     steps:
-      - name: Check if tag already exists in current repo
-        id: check_tag
+      - name: Check if release exists
+        id: check_release
         run: |
-          if git ls-remote --tags "https://github.com/${{ github.repository }}" "refs/tags/v${{ matrix.version }}" | grep -q "v${{ matrix.version }}"; then
-            echo "Tag v${{ matrix.version }} already exists in current repo, skipping"
-            echo "skip=true" >> $GITHUB_ENV  # 设置跳过标志
+          REPO="${{ github.repository }}"
+          TAG="v${{ matrix.version }}"
+          TOKEN="${{ secrets.GITHUB_TOKEN }}"
+
+          # 查询 Release
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: token $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/releases/tags/$TAG")
+
+          if [ "$RESPONSE" -eq 200 ]; then
+            echo "Release $TAG already exists"
+            echo "skip=true" >> $GITHUB_ENV
           else
-            echo "skip=false" >> $GITHUB_ENV  # 设置跳过标志为 false
+            echo "Release $TAG does not exist"
+            echo "skip=false" >> $GITHUB_ENV
           fi
 
       - name: Checkout Tailscale source
@@ -106,26 +117,6 @@ jobs:
         with:
           repository: ${{ env.REPO_OFFICIAL }}
           ref: ${{ env.TAG }}
-
-      - name: Get changelog for ${{ env.TAG }}
-        id: get_changelog
-        run: |
-          # 使用 GitHub API 获取 release 信息
-          response=$(curl -s "https://api.github.com/repos/${{ env.REPO_OFFICIAL }}/releases/tags/${{ env.TAG }}")
-
-          # 提取 release notes
-          changelog=$(echo "$response" | jq -r '.body')
-
-          # 如果没有找到发布说明，设置默认值
-          if [[ "$changelog" == "null" || -z "$changelog" ]]; then
-            changelog="No release notes available for this version."
-          fi
-
-          echo "Changelog for ${{ env.TAG }}:"
-          echo "$changelog"
-
-          # 将 changelog 保存为输出，以便后续步骤使用
-          echo "changelog=$changelog" >> $GITHUB_ENV
 
       - name: Setup Go environment
         uses: actions/setup-go@v5
@@ -206,6 +197,8 @@ jobs:
           sed -i 's|./build/||g' MD5SUMS.txt
           sed -i 's|./upx_compress/||g' SHA256SUMS.txt
           sed -i 's|./upx_compress/||g' MD5SUMS.txt
+          sed -i 's/  */ /g' SHA256SUMS.txt
+          sed -i 's/  */ /g' MD5SUMS.txt
 
           cat SHA256SUMS.txt
           cat MD5SUMS.txt
@@ -264,6 +257,7 @@ jobs:
             - *注意：由于 UPX[目前不支持, 也没有计划支持](https://github.com/upx/upx/issues/272#issuecomment-1250010942)`mips64`与`mips64le`架构, 此release中这两个架构的可执行文件为`未压缩`的状态*
 
             📄 **校验方式**：
+            把 tailscale-linux-* 和校验文件放在同一个目录下，执行：
             ```bash
             sha256sum -c SHA256SUMS.txt
             md5sum -c MD5SUMS.txt
@@ -288,10 +282,7 @@ jobs:
             | version.txt           | 当前版本          |
 
             📜 **更新日志**：
-            <details>
-              <summary>点击查看更新日志</summary>
-              ${{ env.changelog }}
-            </details>
+            [点此查看](https://tailscale.com/changelog)
 
           draft: false
           prerelease: false
