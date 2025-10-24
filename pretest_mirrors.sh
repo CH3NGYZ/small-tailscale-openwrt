@@ -8,7 +8,7 @@ MIRROR_FILE_URL="CH3NGYZ/test-github-proxies/raw/refs/heads/main/proxies.txt"
 SUM_URL="CH3NGYZ/small-tailscale-openwrt/releases/latest/download/SHA256SUMS.txt"
 INST_CONF="$CONFIG_DIR/install.conf"
 . "$INST_CONF"
-BIN_NAME="tailscaled_linux_amd64"
+BIN_NAME="tailscaled-linux-amd64"
 SUM_NAME="SHA256SUMS.txt"
 BIN_PATH="/tmp/$BIN_NAME"
 SUM_PATH="/tmp/$SUM_NAME"
@@ -156,15 +156,28 @@ else
 fi
 
 
-log_warn "⚠️  测试代理下载tailscale可执行文件花费的时间中, 每个代理最长需要 $TIME_OUT 秒, 请耐心等待......"
-# 主流程：测试所有镜像
+log_warn "⚠️  测试代理下载tailscale可执行文件花费的时间中, 每个代理最长需要 $TIME_OUT 秒, 安装时仅测试5个正常连通的代理，请耐心等待......"
+
+# 主流程：测试所有镜像，限制最多5个有效代理
 total=$(grep -cve '^\s*$' "$MIRROR_LIST")  # 排除空行
 index=0
+
 while read -r mirror; do
     [[ -n "$mirror" && "$mirror" == http* ]] || continue
     index=$((index + 1))
     test_mirror "$mirror" "$index/$total"
+    
+    # 读取 TMP_VALID_MIRRORS 文件行数
+    valid_count=$(wc -l < "$TMP_VALID_MIRRORS" 2>/dev/null || echo 0)
+    
+    # 如果已经找到5个有效代理，则跳出循环
+    if [ "$valid_count" -ge 5 ]; then
+        log_info "✅ 已找到5个有效的代理，跳过剩余的代理"
+        break
+    fi
 done < "$MIRROR_LIST"
+
+
 
 # 排序并保存最佳镜像
 if [ -s "$TMP_VALID_MIRRORS" ]; then

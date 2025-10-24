@@ -1,6 +1,5 @@
 # 专用于 OpenWRT 的 UPX 压缩组合版本 Tailscale 的一键安装工具
 
-
 [![Release](https://img.shields.io/github/release/CH3NGYZ/small-tailscale-openwrt)](https://github.com/CH3NGYZ/small-tailscale-openwrt/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/CH3NGYZ/small-tailscale-openwrt/latest/total)](https://github.com/CH3NGYZ/small-tailscale-openwrt/releases/latest)
 [![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FCH3NGYZ%2Fsmall-tailscale-openwrt&label=views&countColor=%23263759&style=flat)](https://github.com/CH3NGYZ/small-tailscale-openwrt)
@@ -8,9 +7,10 @@
 
 #### For English documentation, see [README_EN.md](https://github.com/CH3NGYZ/small-tailscale-openwrt/blob/main/README_EN.md).
 
-### 脚本目前只在ImmortalWRT上测试通过, 其他系统请自测, 可能还有点小bug, 如发现问题请及时反馈~
+### 脚本目前只在 ImmortalWRT 上测试通过, 其他系统请自测, 可能还有点小 bug, 如发现问题请及时反馈~
 
 ## 📦 仓库文件结构
+
 ```
 ├── install.sh                    # 安装脚本包到本地
 ├── pretest_mirrors.sh             # 第一次安装测速代理池的脚本
@@ -35,29 +35,36 @@
 ## 🚀 快速安装
 
 ### 1.下载管理工具 & 排序代理池
-   ```bash
-   # 代理版
-    rm -rf /etc/tailscale /tmp/tailscale-use-direct /tmp/install.sh
-    URL="https://ghproxy.ch3ng.top/https://github.com/CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh"
-    (command -v curl >/dev/null && curl -fSL "$URL" -o /tmp/install.sh || wget "$URL" -O /tmp/install.sh) || { echo 下载失败; exit 1; }
-    sh /tmp/install.sh || { echo 执行失败; exit 1; }
-   ```
+
+```bash
+# 代理版
+ rm -rf /etc/tailscale /tmp/tailscale-use-direct /tmp/install.sh
+ URL="https://ghproxy.ch3ng.top/https://github.com/CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh"
+ (command -v curl >/dev/null && curl -fSL "$URL" -o /tmp/install.sh || wget "$URL" -O /tmp/install.sh) || { echo 下载失败; exit 1; }
+ sh /tmp/install.sh || { echo 执行失败; exit 1; }
+ echo "-----------------------------------------"
+```
+
 ##### 请注意, 如果您开启了代理，下载及更新可能会出现网络问题，可以尝试使用下方的直连命令安装:
-   
-   ```bash
-   # 直连版
-   rm -rf /etc/tailscale /tmp/install.sh
-   touch /tmp/tailscale-use-direct
-   URL="https://github.com/CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh"
-   (command -v curl >/dev/null && curl -fSL "$URL" -o /tmp/install.sh || wget "$URL" -O /tmp/install.sh) || { echo 下载失败; exit 1; }
-   sh /tmp/install.sh || { echo 执行失败; exit 1; }
-   ```
+
+```bash
+# 直连版
+ rm -rf /etc/tailscale /tmp/install.sh
+ touch /tmp/tailscale-use-direct
+ URL="https://github.com/CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh"
+ (command -v curl >/dev/null && curl -fSL "$URL" -o /tmp/install.sh || wget "$URL" -O /tmp/install.sh) || { echo 下载失败; exit 1; }
+ sh /tmp/install.sh || { echo 执行失败; exit 1; }
+ echo "-----------------------------------------"
+```
 
 ### 2.启动管理工具
-   ```bash
-   tailscale-helper
-   ```
+
+```bash
+tailscale-helper
+```
+
 ### 流程图:
+
 <table style="width: 100%;"><tr><td style="width: 50%;"> <details> <summary><strong>代理版流程图</strong></summary>
    
 ```mermaid
@@ -90,8 +97,9 @@ D -->|否| X[❌  安装失败]
 
 E --> I[创建快捷命令]
 I --> J[初始化配置]
-J --> Y[✅  安装完成]
+J --> Y[✅ 安装完成]
 X --> Z[结束]
+
 ```
 
 </details> </td> </tr> </table>
@@ -141,3 +149,4 @@ X --> Z[结束]
 
 ## Star History
 [![Star History Chart](https://api.star-history.com/svg?repos=CH3NGYZ/small-tailscale-openwrt&type=Date)](https://www.star-history.com/#CH3NGYZ/small-tailscale-openwrt&Date)
+```

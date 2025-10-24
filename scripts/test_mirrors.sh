@@ -10,7 +10,7 @@ if [ "$GITHUB_DIRECT" = "true" ]; then
 fi
 
 TIME_OUT=10
-BIN_NAME="tailscaled_linux_amd64"
+BIN_NAME="tailscaled-linux-amd64"
 SUM_NAME="SHA256SUMS.txt"
 BIN_PATH="/tmp/$BIN_NAME"
 SUM_PATH="/tmp/$SUM_NAME"
