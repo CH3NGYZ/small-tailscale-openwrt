@@ -4,11 +4,12 @@ set -e
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh
 TIME_OUT=10
 CONFIG_DIR="/etc/tailscale"
-MIRROR_FILE_URL="CH3NGYZ/test-github-proxies/raw/refs/heads/main/proxies.txt"
+BIN_NAME="tailscaled-linux-amd64"
+BIN_FILE_URL="CH3NGYZ/small-tailscale-openwrt/releases/latest/download/$BIN_NAME"
 SUM_URL="CH3NGYZ/small-tailscale-openwrt/releases/latest/download/SHA256SUMS.txt"
+MIRROR_FILE_URL="CH3NGYZ/test-github-proxies/raw/refs/heads/main/proxies.txt"
 INST_CONF="$CONFIG_DIR/install.conf"
 . "$INST_CONF"
-BIN_NAME="tailscaled-linux-amd64"
 SUM_NAME="SHA256SUMS.txt"
 BIN_PATH="/tmp/$BIN_NAME"
 SUM_PATH="/tmp/$SUM_NAME"
@@ -16,6 +17,7 @@ VALID_MIRRORS="$CONFIG_DIR/valid_proxies.txt"
 TMP_VALID_MIRRORS="/tmp/valid_mirrors.tmp"
 MIRROR_LIST="$CONFIG_DIR/proxies.txt"
 rm -f "$TMP_VALID_MIRRORS"
+touch "$TMP_VALID_MIRRORS"
 
 log_info() {
     echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $1"
@@ -74,14 +76,14 @@ else
     fi
 fi
 
-sha_expected=$(grep "$BIN_NAME" "$SUM_PATH" | awk '{print $1}')
+sha_expected=$(grep "$BIN_NAME" "$SUM_PATH" | grep -v "$BIN_NAME.build" | awk '{print $1}')
 
 # 镜像测试函数（下载并验证 tailscaled）
 test_mirror() {
     local mirror=$(echo "$1" | sed 's|/*$|/|')
-    local url_bin="${mirror}CH3NGYZ/small-tailscale-openwrt/releases/latest/download/$BIN_NAME"
+    local url_bin="${mirror}$BIN_FILE_URL"
     local progress="$2"  # 当前/总数
-    log_info "⏳   测试[$progress] $mirror"
+    log_info "⏳   测试[$progress] $url_bin"
 
     local start=$(date +%s.%N)
 
@@ -93,6 +95,8 @@ test_mirror() {
             log_info "✅  用时 ${dl_time}s"
             echo "$dl_time $mirror" >> "$TMP_VALID_MIRRORS"
         else
+            log_warn "❌  Expected SHA256: $sha_expected"
+            log_warn "❌  Actual   SHA256: $sha_actual"
             log_warn "❌  校验失败"
         fi
     else
@@ -156,7 +160,7 @@ else
 fi
 
 
-log_warn "⚠️  测试代理下载tailscale可执行文件花费的时间中, 每个代理最长需要 $TIME_OUT 秒, 安装时仅测试5个正常连通的代理，请耐心等待......"
+log_warn "⚠️  测试代理中，安装时仅测试5个正常连通的代理，每个代理最长需要 $TIME_OUT 秒，请耐心等待......"
 
 # 主流程：测试所有镜像，限制最多5个有效代理
 total=$(grep -cve '^\s*$' "$MIRROR_LIST")  # 排除空行

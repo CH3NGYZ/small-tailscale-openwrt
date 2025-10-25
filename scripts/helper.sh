@@ -1,5 +1,5 @@
 #!/bin/sh
-SCRIPT_VERSION="v1.0.91"
+SCRIPT_VERSION="v1.0.93"
 
 # 检查并引入 /etc/tailscale/tools.sh 文件
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh
@@ -32,10 +32,10 @@ get_remote_version() {
     log_info "获取远程文件: ${remote_ver_url}"
     if [ "$download_tool" = "curl" ]; then
         # 设置 5 秒超时
-        timeout 10 curl -sSL "$remote_ver_url" | grep -E '^SCRIPT_VERSION=' | cut -d'"' -f2 > "$REMOTE_SCRIPTS_VERSION_FILE"
+        timeout 5 curl -sSL "$remote_ver_url" | grep -E '^SCRIPT_VERSION=' | cut -d'"' -f2 > "$REMOTE_SCRIPTS_VERSION_FILE"
     else
         # 设置 5 秒超时
-        timeout 10 wget -qO- "$remote_ver_url" | grep -E '^SCRIPT_VERSION=' | cut -d'"' -f2 > "$REMOTE_SCRIPTS_VERSION_FILE"
+        timeout 5 wget -qO- "$remote_ver_url" | grep -E '^SCRIPT_VERSION=' | cut -d'"' -f2 > "$REMOTE_SCRIPTS_VERSION_FILE"
     fi
 }
 
@@ -92,7 +92,7 @@ handle_choice() {
                 [ -p "$pipe" ] && rm -f "$pipe"
                 mkfifo "$pipe"
 
-                log_info "🚀  执行 tailscale up, 正在监控输出..."
+                log_info "🚀  执行 tailscale up, 正在生成登录链接..."
 
                 # 后台运行 tailscale up
                 (
@@ -236,24 +236,23 @@ handle_choice() {
             ;;
         14)
             # 检查日志文件是否存在
-            log_info "✅  本文件内容: "
-            log_info "    local模式为: 开机检测 Tailscale 更新的日志, 和定时任务里检测更新的日志"
-            log_info "    tmp  模式为: 开机下载 Tailscale 文件的日志, 和定时任务里检测更新的日志"
             if [ -f /tmp/tailscale_update.log ]; then
                 # 如果文件存在，则显示日志内容
-                log_info "    内容如下："
+                log_info "    日志内容如下："
                 log_info "    ---------------------------"
                 cat /tmp/tailscale_update.log
                 log_info "    ---------------------------"
             else
                 # 如果文件不存在，则提示用户日志文件未找到
                 log_error "❌  没有找到日志文件，更新脚本可能未执行！"
-              
             fi
             log_info "✅  请按回车继续..." 1
             read khjfsdjkhfsd
             ;;
         0)
+            log_info "👋  退出脚本"
+            sleep 2
+            clear
             exit 0
             ;;
         *)
@@ -265,7 +264,7 @@ handle_choice() {
 
 # 主循环前执行一次远程版本检测
 clear
-log_info "🔄  正在检测脚本更新, 最多需要 10 秒..."
+log_info "🔄  正在检测脚本更新, 最多需要 5 秒..."
 get_remote_version
 clear
 

@@ -19,8 +19,8 @@ SCRIPTS_PATH="/tmp/tailscale-openwrt-scripts.tar.gz"
 PRETEST_MIRRORS_SH_URL="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/pretest_mirrors.sh"
 
 # 预先计算的校验和
-EXPECTED_CHECKSUM_SHA256="560be049452186af1ae30ec77236028c626b31cf74c6ca2b76b39203ef41cabd"
-EXPECTED_CHECKSUM_MD5="0933ca2083c018352cf83518f91fa075"
+EXPECTED_CHECKSUM_SHA256="3b1ce33c803de56ff45a82d262103d25f80e28bf436f5122c421f2194b891800"
+EXPECTED_CHECKSUM_MD5="c064397a7df64bff3d5fb90856793715"
 TIME_OUT=30
 
 log_info() {
@@ -38,60 +38,72 @@ log_error() {
     [ $# -eq 2 ] || echo
 }
 
-if [ -f "$CONFIG_DIR/opkg_finished" ]; then
-    log_info "✅  已安装必要组件"
+# 检查是否已经安装所有必要软件包
+required_packages="libustream-openssl ca-bundle kmod-tun coreutils-timeout coreutils-nohup curl"
+need_install=0
+
+# 如果已安装 libustream-mbedtls，则跳过 libustream-openssl
+skip_openssl=0
+if opkg list-installed | grep -q "^libustream-mbedtls"; then
+    skip_openssl=1
+fi
+
+for package in $required_packages; do
+    # 跳过 openssl 版本，仅标记，不输出日志
+    if [ "$skip_openssl" -eq 1 ] && [ "$package" = "libustream-openssl" ]; then
+        continue
+    fi
+
+    if ! opkg list-installed | grep -q "^$package"; then
+        log_warn "⚠️ 包 $package 未安装"
+        need_install=1
+    fi
+done
+
+if [ "$need_install" -eq 0 ]; then
+    log_info "✅ 已安装所有必要组件"
 else
-    log_info "📦  开始检查并安装必要组件..."
-    log_info "🔄  正在更新 opkg 源..."
-    if ! opkg update >/dev/null 2>&1; then
-        log_error "❌  opkg update 失败，请检查网络连接或源配置"
+    log_info "🔄 正在更新 opkg 源..."
+    if ! opkg update 2>&1; then
+        log_error "❌ opkg update 失败，请检查网络连接或源配置"
         exit 1
     fi
-    required_packages="libustream-openssl ca-bundle kmod-tun coreutils-timeout coreutils-nohup"
+
     for package in $required_packages; do
-        if ! opkg list-installed | grep -q "$package"; then
-            log_info "⚠️  包 $package 未安装，开始安装..."
-            if opkg install "$package" >/dev/null 2>&1; then
-                log_info "✅  包 $package 安装成功"
+        # 在安装流程中才输出跳过提示
+        if [ "$skip_openssl" -eq 1 ] && [ "$package" = "libustream-openssl" ]; then
+            log_info "✅ 检测到 libustream-mbedtls，跳过 libustream-openssl"
+            continue
+        fi
+
+        if ! opkg list-installed | grep -q "^$package"; then
+            log_warn "⚠️ 包 $package 未安装，开始安装..."
+            if opkg install "$package" 2>&1; then
+                log_info "✅ 包 $package 安装成功"
             else
-                if [ "$package" = "coreutils-timeout" ]; then
-                    log_warn "⚠️  安装 $package 失败，尝试安装 coreutils 替代..."
-                    if opkg install coreutils >/dev/null 2>&1; then
-                        log_info "✅  coreutils 安装成功，可能已包含 timeout 命令"
+                if [ "$package" = "coreutils-timeout" ] || [ "$package" = "coreutils-nohup" ]; then
+                    alt="coreutils"
+                    log_warn "⚠️ 安装 $package 失败，尝试安装 $alt 替代..."
+                    if opkg install $alt 2>&1; then
+                        log_info "✅ $alt 安装成功，可能已包含 $(echo $package | cut -d- -f2) 命令"
                         continue
                     fi
                 fi
-                if [ "$package" = "coreutils-nohup" ]; then
-                    log_warn "⚠️  安装 $package 失败，尝试安装 coreutils 替代..."
-                    if opkg install coreutils >/dev/null 2>&1; then
-                        log_info "✅  coreutils 安装成功，可能已包含 nohup 命令"
-                        continue
-                    fi
-                fi
-                log_error "❌  安装 $package 失败，无法继续，请手动安装此包"
+                log_error "❌ 安装 $package 失败，无法继续，请手动安装此包"
                 exit 1
             fi
-        else
-            log_info "✅  包 $package 已安装，跳过"
         fi
     done
 
-    # ➕ 添加 timeout 命令最终检查
-    if ! command -v timeout >/dev/null 2>&1; then
-        log_error "❌  未检测到 timeout 命令，尽管已尝试安装，脚本退出。"
-        exit 1
-    else
-        log_info "✅  timeout 命令已可用"
-    fi
-    
-    # ➕ 添加 timeout 命令最终检查
-    if ! command -v nohup >/dev/null 2>&1; then
-        log_error "❌  未检测到 nohup 命令，尽管已尝试安装，脚本退出。"
-        exit 1
-    else
-        log_info "✅  nohup 命令已可用"
-    fi
-    touch "$CONFIG_DIR/opkg_finished"
+    # 最终检查命令可用性
+    for cmd in timeout nohup; do
+        if ! command -v $cmd >/dev/null 2>&1; then
+            log_error "❌ 未检测到 $cmd 命令，请手动安装后重新执行脚本"
+            exit 1
+        else
+            log_info "✅ $cmd 命令已可用"
+        fi
+    done
 fi
 
 # 校验函数, 接收三个参数：文件路径、校验类型（sha256/md5）、预期值
@@ -177,7 +189,6 @@ webget() {
 
     [ "$result" = "200" ] && return 0 || return 1
 }
-
 
 # 使用固定代理
 proxy_url="https://ghproxy.ch3ng.top/https://github.com/${SCRIPTS_TGZ_URL}"
@@ -280,5 +291,15 @@ else
     fi
 fi
 
-log_info "✅  一键安装 Tailscale 配置工具安装完毕!"
-log_info "✅  请运行 tailscale-helper 以开始安装 Tailscale"
+log_info "✅  配置工具安装完毕!"
+log_info "✅  运行 tailscale-helper 可以打开功能菜单"
+log_info "👋  回车直接执行, 输入其他字符退出......"
+read choice
+if [ -z "$choice" ]; then
+    tailscale-helper
+else
+    log_info "👋  退出脚本....."
+    sleep 2
+    clear
+    exit 0
+fi

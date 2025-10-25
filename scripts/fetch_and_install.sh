@@ -37,11 +37,10 @@ get_latest_version() {
     echo "$version"
 }
 
-
 get_checksum() {
     local sums_file=$1
     local target_name=$2
-    grep " $target_name" "$sums_file" | awk '{print $1}'
+    grep "$target_name" "$sums_file" | grep -v "${target_name}.build" | awk '{print $1}'
 }
 
 download_file() {
@@ -92,17 +91,18 @@ verify_checksum() {
     local file=$1
     local expected=$2
 
-
     local actual=""
+
     if [ ${#expected} -eq 64 ]; then
-        log_info "🔗  Expected SHA256: $sha256"
         actual=$(sha256sum "$file" | awk '{print $1}')
-        log_info "🔗  Actual  SHA256: $sha256"
+        log_info "🔗  预期 SHA256: $expected"
+        log_info "🔗  计算 SHA256: $actual"
     elif [ ${#expected} -eq 32 ]; then
-        log_info "🔗  Expected MD5: $md5"
         actual=$(md5sum "$file" | awk '{print $1}')
-        log_info "🔗  Actual  MD5: $md5"
+        log_info "🔗  预期 MD5: $expected"
+        log_info "🔗  计算 MD5: $actual"
     else
+        log_info "🔗  预期: $expected"
         log_warn "⚠️  未知校验长度，跳过校验"
         return 0
     fi
@@ -115,6 +115,7 @@ verify_checksum() {
         return 1
     fi
 }
+
 
 # 主安装流程
 install_tailscale() {
@@ -140,7 +141,6 @@ install_tailscale() {
     [ -s "$sha_file" ] && sha256=$(get_checksum "$sha_file" "$pkg_name")
     [ -s "$md5_file" ] && md5=$(get_checksum "$md5_file" "$pkg_name")
 
-
     # 下载主程序并校验
     log_info "🔗  正在下载 Tailscale $version ($arch)..."
     if ! download_file "$download_base$pkg_name" "$tmp_file" "$mirror_list" "$sha256"; then
@@ -151,7 +151,6 @@ install_tailscale() {
             exit 1
         fi
     fi
-
 
     # 安装
     chmod +x "$tmp_file"

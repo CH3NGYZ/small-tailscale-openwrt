@@ -77,7 +77,7 @@ else
     fi
 fi
 
-sha_expected=$(grep "$BIN_NAME" "$SUM_PATH" | awk '{print $1}')
+sha_expected=$(grep "$BIN_NAME" "$SUM_PATH" | grep -v "$BIN_NAME.build" | awk '{print $1}')
 
 # 镜像测试函数（下载并验证 tailscaled）
 test_mirror() {
@@ -102,7 +102,6 @@ test_mirror() {
     fi
     rm -f "$BIN_PATH" "$SUM_PATH"
 }
-
 
 # 下载镜像列表
 MIRROR_FILE_URL_PROXY="https://ghproxy.ch3ng.top/https://github.com/${MIRROR_FILE_URL}"

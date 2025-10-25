@@ -42,7 +42,7 @@
  URL="https://ghproxy.ch3ng.top/https://github.com/CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh"
  (command -v curl >/dev/null && curl -fSL "$URL" -o /tmp/install.sh || wget "$URL" -O /tmp/install.sh) || { echo 下载失败; exit 1; }
  sh /tmp/install.sh || { echo 执行失败; exit 1; }
- echo
+  
 ```
 
 ##### 请注意, 如果您开启了代理，下载及更新可能会出现网络问题，可以尝试使用下方的直连命令安装:
@@ -54,7 +54,7 @@
  URL="https://github.com/CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh"
  (command -v curl >/dev/null && curl -fSL "$URL" -o /tmp/install.sh || wget "$URL" -O /tmp/install.sh) || { echo 下载失败; exit 1; }
  sh /tmp/install.sh || { echo 执行失败; exit 1; }
- echo
+  
 ```
 
 ### 2.启动管理工具

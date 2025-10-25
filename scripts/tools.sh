@@ -19,7 +19,7 @@ log_info() {
 }
 
 log_warn() {
-    echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [WARN] $1"
+    echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [WARNING] $1"
     [ $# -eq 2 ] || echo
 }
 
