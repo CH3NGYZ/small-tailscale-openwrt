@@ -8,10 +8,12 @@ INST_CONF="$CONFIG_DIR/install.conf"
 if [ -f /tmp/tailscale-use-direct ]; then
     echo "GITHUB_DIRECT=true" > "$INST_CONF"
     GITHUB_DIRECT=true
+    CUSTOM_PROXY_URL=""
     rm -f /tmp/tailscale-use-direct
 else
     echo "GITHUB_DIRECT=false" > "$INST_CONF"
     GITHUB_DIRECT=false
+    CUSTOM_PROXY_URL="https://ghproxy.ch3ng.top/"
 fi
 
 SCRIPTS_TGZ_URL="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/tailscale-openwrt-scripts.tar.gz"
@@ -19,8 +21,8 @@ SCRIPTS_PATH="/tmp/tailscale-openwrt-scripts.tar.gz"
 PRETEST_MIRRORS_SH_URL="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/pretest_mirrors.sh"
 
 # 预先计算的校验和
-EXPECTED_CHECKSUM_SHA256="3b1ce33c803de56ff45a82d262103d25f80e28bf436f5122c421f2194b891800"
-EXPECTED_CHECKSUM_MD5="c064397a7df64bff3d5fb90856793715"
+EXPECTED_CHECKSUM_SHA256="86503a19d2dbbbf0b97db72947d8bc70a2f280d292162d7d01264345bf10ccda"
+EXPECTED_CHECKSUM_MD5="a3cdbfb94bfc30b04b45e754e005acd2"
 TIME_OUT=30
 
 log_info() {
@@ -190,8 +192,8 @@ webget() {
     [ "$result" = "200" ] && return 0 || return 1
 }
 
-# 使用固定代理
-proxy_url="https://ghproxy.ch3ng.top/https://github.com/${SCRIPTS_TGZ_URL}"
+# 使用自建代理
+proxy_url="${CUSTOM_PROXY_URL}https://github.com/${SCRIPTS_TGZ_URL}"
 direct_url="https://github.com/${SCRIPTS_TGZ_URL}"
 success=0
 
@@ -203,7 +205,7 @@ if [ "$GITHUB_DIRECT" = "true" ] ; then
         success=1
     fi
 else
-    log_info "🔗  使用固定代理下载: $proxy_url"
+    log_info "🔗  使用自建代理下载: $proxy_url"
     if webget "$SCRIPTS_PATH" "$proxy_url" "echooff" && \
        (verify_checksum "$SCRIPTS_PATH" "sha256" "$EXPECTED_CHECKSUM_SHA256" || \
         verify_checksum "$SCRIPTS_PATH" "md5" "$EXPECTED_CHECKSUM_MD5"); then
@@ -261,7 +263,7 @@ EOF
 run_pretest_mirrors() {
     log_info "🔄  下载 pretest_mirrors.sh 并执行测速..."
 
-    proxy_url="https://ghproxy.ch3ng.top/https://github.com/${PRETEST_MIRRORS_SH_URL}"
+    proxy_url="${CUSTOM_PROXY_URL}https://github.com/${PRETEST_MIRRORS_SH_URL}"
     raw_url="https://github.com/${PRETEST_MIRRORS_SH_URL}"
     if webget "/tmp/pretest_mirrors.sh" "$proxy_url" "echooff"; then
         sh /tmp/pretest_mirrors.sh

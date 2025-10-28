@@ -9,7 +9,7 @@ BIN_FILE_URL="CH3NGYZ/small-tailscale-openwrt/releases/latest/download/$BIN_NAME
 SUM_URL="CH3NGYZ/small-tailscale-openwrt/releases/latest/download/SHA256SUMS.txt"
 MIRROR_FILE_URL="CH3NGYZ/test-github-proxies/raw/refs/heads/main/proxies.txt"
 INST_CONF="$CONFIG_DIR/install.conf"
-. "$INST_CONF"
+safe_source "$INST_CONF"
 SUM_NAME="SHA256SUMS.txt"
 BIN_PATH="/tmp/$BIN_NAME"
 SUM_PATH="/tmp/$SUM_NAME"
@@ -18,6 +18,13 @@ TMP_VALID_MIRRORS="/tmp/valid_mirrors.tmp"
 MIRROR_LIST="$CONFIG_DIR/proxies.txt"
 rm -f "$TMP_VALID_MIRRORS"
 touch "$TMP_VALID_MIRRORS"
+
+if [ "$GITHUB_DIRECT" = "true" ]; then
+    CUSTOM_PROXY_URL=""
+else
+    CUSTOM_PROXY_URL="https://ghproxy.ch3ng.top/"
+fi
+
 
 log_info() {
     echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $1"
@@ -56,7 +63,7 @@ webget() {
 }
 
 # 提前下载校验文件
-SUM_URL_PROXY="https://ghproxy.ch3ng.top/https://github.com/${SUM_URL}"
+SUM_URL_PROXY="${CUSTOM_PROXY_URL}https://github.com/${SUM_URL}"
 SUM_URL_DIRECT="https://github.com/${SUM_URL}"
 
 if [ "$GITHUB_DIRECT" = "true" ] ; then
@@ -66,7 +73,7 @@ if [ "$GITHUB_DIRECT" = "true" ] ; then
         exit 1
     fi
 else
-    log_info "🔗  使用固定代理下载: $SUM_URL_PROXY"
+    log_info "🔗  使用自建代理下载: $SUM_URL_PROXY"
     if ! webget "$SUM_PATH" "$SUM_URL_PROXY" "echooff"; then
         log_info "🔗  代理失效，尝试直连: $SUM_URL_DIRECT"
         if ! webget "$SUM_PATH" "$SUM_URL_DIRECT" "echooff"; then
@@ -138,7 +145,7 @@ manual_fallback() {
 }
 
 # 下载镜像列表
-MIRROR_FILE_URL_PROXY="https://ghproxy.ch3ng.top/https://github.com/${MIRROR_FILE_URL}"
+MIRROR_FILE_URL_PROXY="${CUSTOM_PROXY_URL}https://github.com/${MIRROR_FILE_URL}"
 MIRROR_FILE_URL_DIRECT="https://github.com/${MIRROR_FILE_URL}"
 
 log_info "🛠️  正在下载镜像列表，请耐心等待..."

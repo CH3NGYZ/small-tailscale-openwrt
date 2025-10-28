@@ -26,7 +26,7 @@ fi
 # 显示菜单
 show_menu() {
     clear
-    [ -f "$NTF_CONF" ] && . "$NTF_CONF"
+    [ -f "$NTF_CONF" ] && safe_source "$NTF_CONF"
 
     # 获取当前通知开关状态
     serverchan_status=$([ "$NOTIFY_SERVERCHAN" = "1" ] && echo "✅" || echo "❌")

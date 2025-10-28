@@ -7,6 +7,8 @@ safe_source "$INST_CONF"
 if [ "$GITHUB_DIRECT" = "true" ]; then
     log_info "🌐  不测速代理池..."
     return 0
+else
+    CUSTOM_PROXY_URL="https://ghproxy.ch3ng.top/"
 fi
 
 TIME_OUT=10
@@ -57,7 +59,7 @@ webget() {
 }
 
 # 提前下载校验文件
-SUM_URL_PROXY="https://ghproxy.ch3ng.top/https://github.com/${SUM_URL}"
+SUM_URL_PROXY="${CUSTOM_PROXY_URL}https://github.com/${SUM_URL}"
 SUM_URL_DIRECT="https://github.com/${SUM_URL}"
 
 if [ "$GITHUB_DIRECT" = "true" ] ; then
@@ -67,7 +69,7 @@ if [ "$GITHUB_DIRECT" = "true" ] ; then
         exit 1
     fi
 else
-    log_info "🔗  使用固定代理下载: $SUM_URL_PROXY"
+    log_info "🔗  使用自建代理下载: $SUM_URL_PROXY"
     if ! webget "$SUM_PATH" "$SUM_URL_PROXY" "echooff"; then
         log_info "🔗  代理失效，尝试直连: $SUM_URL_DIRECT"
         if ! webget "$SUM_PATH" "$SUM_URL_DIRECT" "echooff"; then
@@ -104,7 +106,7 @@ test_mirror() {
 }
 
 # 下载镜像列表
-MIRROR_FILE_URL_PROXY="https://ghproxy.ch3ng.top/https://github.com/${MIRROR_FILE_URL}"
+MIRROR_FILE_URL_PROXY="${CUSTOM_PROXY_URL}https://github.com/${MIRROR_FILE_URL}"
 MIRROR_FILE_URL_DIRECT="https://github.com/${MIRROR_FILE_URL}"
 
 log_info "🛠️  正在下载镜像列表，请耐心等待..."

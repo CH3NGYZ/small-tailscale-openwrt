@@ -1,15 +1,16 @@
 #!/bin/sh
-SCRIPT_VERSION="v1.0.93"
+SCRIPT_VERSION="v1.0.94"
 
 # 检查并引入 /etc/tailscale/tools.sh 文件
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh
 safe_source "$INST_CONF"
 
-if [ "$GITHUB_DIRECT" = "true" ] ; then
-    custom_proxy="https://github.com/"
+if [ "$GITHUB_DIRECT" = "true" ]; then
+    CUSTOM_PROXY_URL=""
 else
-    custom_proxy="https://ghproxy.ch3ng.top/https://github.com/"
+    CUSTOM_PROXY_URL="https://ghproxy.ch3ng.top/"
 fi
+
 
 
 # 自动判断 curl 和 wget 可用性
@@ -28,7 +29,7 @@ get_download_tool() {
 download_tool=$(get_download_tool)
 
 get_remote_version() {
-    remote_ver_url="${custom_proxy}CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/scripts/helper.sh"
+    remote_ver_url="${CUSTOM_PROXY_URL}https://github.com/CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/scripts/helper.sh"
     log_info "获取远程文件: ${remote_ver_url}"
     if [ "$download_tool" = "curl" ]; then
         # 设置 5 秒超时
@@ -220,9 +221,9 @@ handle_choice() {
             ;;
         13)
             if [ "$download_tool" = "curl" ]; then
-                curl -sSL "${custom_proxy}CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh" | sh
+                curl -sSL "${CUSTOM_PROXY_URL}https://github.com/CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh" | sh
             else
-                wget -O- "${custom_proxy}CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh" | sh
+                wget -O- "${CUSTOM_PROXY_URL}https://github.com/CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh" | sh
             fi
 
             if [ $? -ne 0 ]; then
