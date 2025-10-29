@@ -7,23 +7,32 @@ log_info "加载公共函数..."
 log_info "加载配置文件..."
 safe_source "$INST_CONF" || log_warn "⚠️  INST_CONF 未找到或无效，使用默认配置"
 
+if [ "$GITHUB_DIRECT" = "true" ]; then
+    CUSTOM_PROXY_URL=""
+else
+    CUSTOM_PROXY_URL="https://ghproxy.ch3ng.top/"
+fi
+
 get_arch() {
-    arch_=$(uname -m)
-    case "$arch_" in
-        i386) arch=386 ;;
-        x86_64) arch=amd64 ;;
-        armv7l) arch=arm ;;
-        aarch64|armv8l) arch=arm64 ;;
-        mips) 
-            arch=mips
-            endianness=$(echo -n I | hexdump -o | awk '{ print (substr($2,6,1)=="1") ? "le" : "be"; exit }')
-            ;;
-        *) 
-            echo "❌  不支持的架构: $arch_"
+    arch_raw=$(uname -m)
+    case "$arch_raw" in
+        i386|i686) arch="386" ;;       # 32位 x86
+        x86_64)    arch="amd64" ;;     # 64位 x86
+
+        armv7l|armv7|armhf|armv6l) arch="arm" ;;  # 32位 ARM
+        aarch64|arm64|armv8l)     arch="arm64" ;; # 64位 ARM
+
+        mips)         arch="mips" ;;       # 32位 MIPS big-endian
+        mipsel|mipsel_24kc) arch="mipsle" ;;  # 32位 MIPS little-endian
+        mips64)       arch="mips64" ;;    # 64位 MIPS big-endian
+        mips64el)     arch="mips64le" ;;  # 64位 MIPS little-endian
+
+        *)
+            echo "❌ 不支持的架构: $arch_raw, 请提交issue!"
+            echo "https://github.com/CH3NGYZ/small-tailscale-openwrt/issues"
             exit 1
             ;;
     esac
-    [ -n "$endianness" ] && arch="${arch}${endianness}"
     echo "$arch"
 }
 
@@ -118,7 +127,7 @@ if [ "$has_args" = false ]; then
     log_info "🧩  正在拉取版本列表，请耐心等待..."
 
     # 🧩 拉取 release tag 列表
-    HTTP_CODE=$(webgetcode "https://api.github.com/repos/ch3ngyz/small-tailscale-openwrt/releases")
+    HTTP_CODE=$(webgetcode "${CUSTOM_PROXY_URL}https://api.github.com/repos/ch3ngyz/small-tailscale-openwrt/releases?per_page=100")
 
     if [ "$HTTP_CODE" -ne 200 ]; then
         log_error "❌  GitHub API 请求失败，状态码: $HTTP_CODE"
@@ -126,7 +135,19 @@ if [ "$has_args" = false ]; then
         VERSION="latest"
     else
         TAGS_TMP="/tmp/.tags.$$"
-        grep '"tag_name":' response.json | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/' > "$TAGS_TMP"
+
+        if command -v jq >/dev/null 2>&1; then
+            jq -r '.[] | select(.tag_name) | .tag_name' response.json \
+                | sed '/^$/d' \
+                | sort -r -u \
+                > "$TAGS_TMP"
+        else
+            grep -o '"tag_name"[ ]*:[ ]*"[^"]*"' response.json \
+                | sed 's/.*"tag_name"[ ]*:[ ]*"\([^"]*\)".*/\1/' \
+                | sort -r -u \
+                > "$TAGS_TMP"
+        fi
+
         rm -f response.json
 
         if [ ! -s "$TAGS_TMP" ]; then

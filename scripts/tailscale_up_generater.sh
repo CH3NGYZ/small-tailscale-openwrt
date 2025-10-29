@@ -167,12 +167,12 @@ generate_cmd() {
   log_info "$cmd"
   log_info "🟢  是否立即执行该命令？[y/N]: " 1
   read runnow
-  if [ "$runnow" = "y" ] || [ "$runnow" = "Y" ]; then
-    log_info "🚀  正在执行 tailscale up ..."
-    eval "$cmd"
-    log_info "⏳  请按回车继续..." 1
-    read _
-    exit 0
+  if [ -z "$runnow" ] || [ "$runnow" = "y" ] || [ "$runnow" = "Y" ]; then
+      log_info "🚀  正在执行 tailscale up ..."
+      eval "$cmd"
+      log_info "⏳  请按回车继续..." 1
+      read _
+      exit 0
   fi
 }
 

@@ -90,7 +90,7 @@ send_notify() {
     local body_content="$(printf "%s\n" "$@")"
     local content="$(printf "%s\n%s" "$user_title" "$body_content")"
 
-    . "$NTF_CONF"  # 引入配置文件
+    safe_source "$NTF_CONF"  # 引入配置文件
 
     # 通用发送函数（curl 优先，wget 兼容）
     send_via_curl_or_wget() {

@@ -8,10 +8,12 @@ INST_CONF="$CONFIG_DIR/install.conf"
 if [ -f /tmp/tailscale-use-direct ]; then
     echo "GITHUB_DIRECT=true" > "$INST_CONF"
     GITHUB_DIRECT=true
+    CUSTOM_PROXY_URL=""
     rm -f /tmp/tailscale-use-direct
 else
     echo "GITHUB_DIRECT=false" > "$INST_CONF"
     GITHUB_DIRECT=false
+    CUSTOM_PROXY_URL="https://ghproxy.ch3ng.top/"
 fi
 
 SCRIPTS_TGZ_URL="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/tailscale-openwrt-scripts.tar.gz"
@@ -19,8 +21,8 @@ SCRIPTS_PATH="/tmp/tailscale-openwrt-scripts.tar.gz"
 PRETEST_MIRRORS_SH_URL="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/pretest_mirrors.sh"
 
 # 预先计算的校验和
-EXPECTED_CHECKSUM_SHA256="3b1ce33c803de56ff45a82d262103d25f80e28bf436f5122c421f2194b891800"
-EXPECTED_CHECKSUM_MD5="c064397a7df64bff3d5fb90856793715"
+EXPECTED_CHECKSUM_SHA256="f99b4fe39f42a75b25301f560f20c64e55681ddc28091064555e54e669ce8ec1"
+EXPECTED_CHECKSUM_MD5="e27bb7c1f65d49d403a4c19124db8a96"
 TIME_OUT=30
 
 log_info() {
@@ -39,7 +41,7 @@ log_error() {
 }
 
 # 检查是否已经安装所有必要软件包
-required_packages="libustream-openssl ca-bundle kmod-tun coreutils-timeout coreutils-nohup curl"
+required_packages="libustream-openssl ca-bundle kmod-tun coreutils-timeout coreutils-nohup curl jq"
 need_install=0
 
 # 如果已安装 libustream-mbedtls，则跳过 libustream-openssl
@@ -65,8 +67,9 @@ if [ "$need_install" -eq 0 ]; then
 else
     log_info "🔄 正在更新 opkg 源..."
     if ! opkg update 2>&1; then
-        log_error "❌ opkg update 失败，请检查网络连接或源配置"
-        exit 1
+        log_error "⚠️ opkg update 失败，请检查网络连接或源配置，继续执行..."
+    else
+        log_info "✅ opkg update 成功"
     fi
 
     for package in $required_packages; do
@@ -81,6 +84,13 @@ else
             if opkg install "$package" 2>&1; then
                 log_info "✅ 包 $package 安装成功"
             else
+                # ★ 针对 jq 的特殊跳过逻辑 ★
+                if [ "$package" = "jq" ]; then
+                    log_warn "⚠️ 安装 jq 失败，将使用回退解析方式，继续执行"
+                    continue
+                fi
+
+                # 针对 coreutils 的替代逻辑
                 if [ "$package" = "coreutils-timeout" ] || [ "$package" = "coreutils-nohup" ]; then
                     alt="coreutils"
                     log_warn "⚠️ 安装 $package 失败，尝试安装 $alt 替代..."
@@ -89,6 +99,7 @@ else
                         continue
                     fi
                 fi
+
                 log_error "❌ 安装 $package 失败，无法继续，请手动安装此包"
                 exit 1
             fi
@@ -96,7 +107,7 @@ else
     done
 
     # 最终检查命令可用性
-    for cmd in timeout nohup; do
+    for cmd in timeout nohup curl jq; do
         if ! command -v $cmd >/dev/null 2>&1; then
             log_error "❌ 未检测到 $cmd 命令，请手动安装后重新执行脚本"
             exit 1
@@ -190,8 +201,8 @@ webget() {
     [ "$result" = "200" ] && return 0 || return 1
 }
 
-# 使用固定代理
-proxy_url="https://ghproxy.ch3ng.top/https://github.com/${SCRIPTS_TGZ_URL}"
+# 使用自建代理
+proxy_url="${CUSTOM_PROXY_URL}https://github.com/${SCRIPTS_TGZ_URL}"
 direct_url="https://github.com/${SCRIPTS_TGZ_URL}"
 success=0
 
@@ -203,7 +214,7 @@ if [ "$GITHUB_DIRECT" = "true" ] ; then
         success=1
     fi
 else
-    log_info "🔗  使用固定代理下载: $proxy_url"
+    log_info "🔗  使用自建代理下载: $proxy_url"
     if webget "$SCRIPTS_PATH" "$proxy_url" "echooff" && \
        (verify_checksum "$SCRIPTS_PATH" "sha256" "$EXPECTED_CHECKSUM_SHA256" || \
         verify_checksum "$SCRIPTS_PATH" "md5" "$EXPECTED_CHECKSUM_MD5"); then
@@ -261,7 +272,7 @@ EOF
 run_pretest_mirrors() {
     log_info "🔄  下载 pretest_mirrors.sh 并执行测速..."
 
-    proxy_url="https://ghproxy.ch3ng.top/https://github.com/${PRETEST_MIRRORS_SH_URL}"
+    proxy_url="${CUSTOM_PROXY_URL}https://github.com/${PRETEST_MIRRORS_SH_URL}"
     raw_url="https://github.com/${PRETEST_MIRRORS_SH_URL}"
     if webget "/tmp/pretest_mirrors.sh" "$proxy_url" "echooff"; then
         sh /tmp/pretest_mirrors.sh

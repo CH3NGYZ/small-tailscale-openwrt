@@ -1,4 +1,4 @@
-# 专用于 OpenWRT 的 UPX 压缩组合版本 Tailscale 的一键安装工具
+# 专用于 OpenWrt 的小型 Tailscale 一键安装工具
 
 [![Release](https://img.shields.io/github/release/CH3NGYZ/small-tailscale-openwrt)](https://github.com/CH3NGYZ/small-tailscale-openwrt/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/CH3NGYZ/small-tailscale-openwrt/latest/total)](https://github.com/CH3NGYZ/small-tailscale-openwrt/releases/latest)
@@ -7,7 +7,10 @@
 
 #### For English documentation, see [README_EN.md](https://github.com/CH3NGYZ/small-tailscale-openwrt/blob/main/README_EN.md).
 
-### 脚本目前只在 ImmortalWRT 上测试通过, 其他系统请自测, 可能还有点小 bug, 如发现问题请及时反馈~
+### 脚本目前只在下列系统上测试通过, 其他系统请自测, 可能还有点小 bug, 如发现问题请及时提 [issue](https://github.com/CH3NGYZ/small-tailscale-openwrt/issues/new) 反馈~
+- x86_64
+  - [iStoreOS-24.10.4-2025102410](https://site.istoreos.com/firmware/download?devicename=x86_64&firmware=iStoreOS)
+  - [EzOpWrt-Vip-Super-202510010716-6.6.106](https://github.com/sirpdboy/openwrt?tab=readme-ov-file#%E5%9B%BA%E4%BB%B6%E4%B8%8B%E8%BD%BD)
 
 ## 📦 仓库文件结构
 
@@ -149,4 +152,3 @@ X --> Z[结束]
 
 ## Star History
 [![Star History Chart](https://api.star-history.com/svg?repos=CH3NGYZ/small-tailscale-openwrt&type=Date)](https://www.star-history.com/#CH3NGYZ/small-tailscale-openwrt&Date)
-```

@@ -3,10 +3,16 @@
 set -e
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh && safe_source "$INST_CONF"
 
+if [ "$GITHUB_DIRECT" = "true" ]; then
+    CUSTOM_PROXY_URL=""
+else
+    CUSTOM_PROXY_URL="https://ghproxy.ch3ng.top/"
+fi
+
 
 # 获取最新版本
 get_latest_version() {
-    local api_url="https://api.github.com/repos/CH3NGYZ/small-tailscale-openwrt/releases/latest"
+    local api_url="${CUSTOM_PROXY_URL}https://api.github.com/repos/CH3NGYZ/small-tailscale-openwrt/releases/latest"
     local json=""
     local version=""
 
@@ -27,10 +33,20 @@ get_latest_version() {
         return 1
     fi
 
-    version=$(echo "$json" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    if command -v jq >/dev/null 2>&1; then
+        # jq 解析单个对象
+        version=$(echo "$json" \
+            | jq -r '.tag_name // empty')
+    else
+        # grep + sed 回退
+        version=$(echo "$json" \
+            | grep -o '"tag_name"[ ]*:[ ]*"[^"]*"' \
+            | sed 's/.*"tag_name"[ ]*:[ ]*"\([^"]*\)".*/\1/' \
+            | head -n1)
+    fi
 
     if [[ -z "$version" ]]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] ❌  错误：未能解析 tag_name。" >&2
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] ❌  错误：版本号为空" >&2
         return 1
     fi
 
