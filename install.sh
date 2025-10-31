@@ -40,6 +40,12 @@ log_error() {
     [ $# -eq 2 ] || echo
 }
 
+if ! command -v opkg >/dev/null 2>&1; then
+    log_error "❌ 未检测到 opkg 命令，当前系统可能不是 OpenWRT 或缺少包管理器"
+    log_error "❌ 无法继续执行安装脚本"
+    exit 1
+fi
+
 # 检查是否已经安装所有必要软件包
 required_packages="libustream-openssl ca-bundle kmod-tun coreutils-timeout coreutils-nohup curl jq"
 need_install=0
