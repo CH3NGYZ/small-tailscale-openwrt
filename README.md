@@ -151,8 +151,12 @@ X --> Z[结束]
    3. [UPX](https://github.com/upx/upx)
    4. 本项目CDN由 [Tencent EdgeOne](https://edgeone.ai/?from=github) 提供. CDN acceleration and security protection for this project are sponsored by [Tencent EdgeOne](https://edgeone.ai/?from=github).
 <img width="1082" height="154" alt="image" src="https://github.com/user-attachments/assets/0aa53c8d-2b8c-4dc0-b200-284f8b265f36" />
+<img width="1548" height="879" alt="image" src="https://github.com/user-attachments/assets/843122cf-93b8-4b26-8021-682876464d09" />
+
+
 
 
 
 ## Star History
 [![Star History Chart](https://api.star-history.com/svg?repos=CH3NGYZ/small-tailscale-openwrt&type=Date)](https://www.star-history.com/#CH3NGYZ/small-tailscale-openwrt&Date)
+
