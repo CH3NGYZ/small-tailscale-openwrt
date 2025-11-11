@@ -149,6 +149,10 @@ X --> Z[结束]
    1. [glinet-tailscale-updater](https://github.com/Admonstrator/glinet-tailscale-updater)
    2. [golang](https://github.com/golang/go)
    3. [UPX](https://github.com/upx/upx)
+   4. 本项目CDN由 [Tencent EdgeOne](https://edgeone.ai/?from=github) 提供. CDN acceleration and security protection for this project are sponsored by [Tencent EdgeOne](https://edgeone.ai/?from=github).
+<img width="1082" height="154" alt="image" src="https://github.com/user-attachments/assets/0aa53c8d-2b8c-4dc0-b200-284f8b265f36" />
+
+
 
 ## Star History
 [![Star History Chart](https://api.star-history.com/svg?repos=CH3NGYZ/small-tailscale-openwrt&type=Date)](https://www.star-history.com/#CH3NGYZ/small-tailscale-openwrt&Date)
