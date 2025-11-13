@@ -5,8 +5,6 @@
 [![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FCH3NGYZ%2Fsmall-tailscale-openwrt&label=views&countColor=%23263759&style=flat)](https://github.com/CH3NGYZ/small-tailscale-openwrt)
 [![Stars](https://img.shields.io/github/stars/CH3NGYZ/small-tailscale-openwrt)](https://github.com/CH3NGYZ/small-tailscale-openwrt/stargazers)
 
-#### For English documentation, see [README_EN.md](https://github.com/CH3NGYZ/small-tailscale-openwrt/blob/main/README_EN.md).
-
 ### 脚本目前只在下列系统上测试通过, 其他系统请自测, 可能还有点小 bug, 如发现问题请及时提 [issue](https://github.com/CH3NGYZ/small-tailscale-openwrt/issues/new) 反馈~
 - x86_64
   - [iStoreOS-24.10.4-2025102410](https://site.istoreos.com/firmware/download?devicename=x86_64&firmware=iStoreOS)
@@ -149,13 +147,6 @@ X --> Z[结束]
    1. [glinet-tailscale-updater](https://github.com/Admonstrator/glinet-tailscale-updater)
    2. [golang](https://github.com/golang/go)
    3. [UPX](https://github.com/upx/upx)
-   4. 本项目CDN由 [Tencent EdgeOne](https://edgeone.ai/?from=github) 提供. CDN acceleration and security protection for this project are sponsored by [Tencent EdgeOne](https://edgeone.ai/?from=github).
-<img width="1082" height="154" alt="image" src="https://github.com/user-attachments/assets/0aa53c8d-2b8c-4dc0-b200-284f8b265f36" />
-<img width="1548" height="879" alt="image" src="https://github.com/user-attachments/assets/843122cf-93b8-4b26-8021-682876464d09" />
-
-
-
-
 
 ## Star History
 [![Star History Chart](https://api.star-history.com/svg?repos=CH3NGYZ/small-tailscale-openwrt&type=Date)](https://www.star-history.com/#CH3NGYZ/small-tailscale-openwrt&Date)
