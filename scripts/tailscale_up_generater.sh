@@ -4,27 +4,33 @@
 CONFIG_DIR="/etc/tailscale"
 CONF_FILE="$CONFIG_DIR/tailscale_up.conf"
 
-PARAMS_LIST="--accept-dns:flag:接受来自管理控制台的 DNS 设置
---accept-risk:value:接受风险类型并跳过确认（lose-ssh, all 或空）
---accept-routes:flag:接受其他节点广告的子网路由
---advertise-exit-node:flag:提供出口节点功能
---advertise-routes:value:共享子网路由，填写 IP 段，如 192.168.1.0/24
---advertise-tags:value:为设备添加标签权限
---auth-key:value:提供认证密钥自动登录
---exit-node:value:使用指定出口节点（IP 或名称）
---exit-node-allow-lan-access:flag:允许连接出口节点时访问本地局域网
---force-reauth:flag:强制重新认证
---hostname:value:使用自定义主机名
---login-server:value:指定控制服务器 URL
---netfilter-mode:value:控制防火墙规则：off/nodivert/on
---operator:value:使用非 root 用户操作 tailscaled
---qr:flag:生成二维码供网页登录
---reset:flag:重置未指定设置
---shields-up:flag:屏蔽来自网络其他设备的连接
---snat-subnet-routes:flag:对子网路由使用源地址转换
---stateful-filtering:flag:启用状态过滤（子网路由器/出口节点）
---ssh:flag:启用 Tailscale SSH 服务
---timeout:value:tailscaled 初始化超时时间（如10s）"
+PARAMS_LIST="--accept-dns:flag:接受来自管理面板的 DNS 配置（默认 true）
+--accept-risk:value:接受风险类型并跳过确认（lose-ssh、mac-app-connector、linux-strict-rp-filter、all）
+--accept-routes:flag:接受其他 Tailscale 节点通告的路由（默认 false）
+--advertise-connector:flag:将此节点宣告为应用连接器（默认 false）
+--advertise-exit-node:flag:提供此节点作为出口节点以转发互联网流量（默认 false）
+--advertise-routes:value:向其他节点通告的路由（逗号分隔，例如 10.0.0.0/8,192.168.0.0/24），空字符串表示不通告
+--advertise-tags:value:请求的 ACL 标签（逗号分隔），每个必须以 tag: 开头
+--auth-key:value:节点授权密钥；如果以 file: 开头则为包含密钥的文件路径
+--client-id:value:用于通过工作负载身份联合生成授权密钥的 Client ID
+--client-secret:value:用于通过 OAuth 生成授权密钥的 Client Secret；以 file: 开头则为包含密钥的文件路径
+--exit-node:value:Tailscale 出口节点（IP、基本名称或 auto:any），空字符串表示不使用出口节点
+--exit-node-allow-lan-access:flag:通过出口节点路由时允许直接访问本地局域网（默认 false）
+--force-reauth:flag:强制重新认证（警告：会断开 Tailscale 连接，不应在 SSH 或 RDP 远程执行）（默认 false）
+--hostname:value:使用此主机名而不是操作系统提供的名称
+--id-token:value:从身份提供商获取的 ID token，用于与控制服务器交换以进行工作负载身份联合；以 file: 开头则为文件路径
+--json:flag:以 JSON 格式输出（警告：格式可能变更）（默认 false）
+--login-server:value:控制服务器的基础 URL（默认 https://controlplane.tailscale.com）
+--netfilter-mode:value:netfilter 模式（on、nodivert、off 之一）（默认 on）
+--operator:value:允许无需 sudo 操作 tailscaled 的 Unix 用户名
+--qr:flag:显示登录 URL 的二维码（默认 false）
+--qr-format:value:二维码格式（small 或 large，默认 small）
+--reset:flag:将未指定的设置重置为默认值（默认 false）
+--shields-up:flag:不允许传入连接（默认 false）
+--snat-subnet-routes:flag:对通过 --advertise-routes 通告的本地路由进行源 NAT（默认 true）
+--ssh:flag:运行 SSH 服务器，允许根据 tailnet 管理员声明的策略访问（默认 false）
+--stateful-filtering:flag:对转发的数据包应用有状态过滤（子网路由器、出口节点等）（默认 false）
+--timeout:value:等待 tailscaled 进入 Running 状态的最长时间；默认 0s 表示永远等待"
 
 # 获取参数类型
 get_param_type() {
@@ -45,15 +51,13 @@ load_conf() {
     key=$(echo "$key" | tr '-' '_' | tr '[:lower:]' '[:upper:]')
     value=$(echo "$value" | sed 's/^"\(.*\)"$/\1/')
     eval "$key=\"$value\""
-    # 输出每个加载的配置项
     log_info "加载配置: $key=$value"
   done < "$CONF_FILE"
 }
 
-
 # 保存配置到文件
 save_conf() {
-  echo -n > "$CONF_FILE"  # 清空文件内容
+  echo -n > "$CONF_FILE"
   echo "$PARAMS_LIST" | while IFS= read -r line; do
     key=$(echo "$line" | cut -d':' -f1)
     var_name=$(echo "$key" | tr '-' '_' | tr '[:lower:]' '[:upper:]')
@@ -121,7 +125,7 @@ edit_param() {
       read val
       [ -n "$val" ] && eval "$var_name=\"$val\"" && log_info "✅  保存了 $key 的值：$val"
     else
-      log_info "🔄  当前 $key 的值为 $val，按回车继续编辑或输入新值，输入空值将删除该值：" 1
+      log_info "🔄  当前 $key 的值为 $val，直接回车则清除，输入其他值则更新：" 1
       read newval
       if [ -n "$newval" ]; then
         eval "$var_name=\"$newval\""
@@ -139,28 +143,25 @@ edit_param() {
 # 生成带参数的 tailscale up 命令
 generate_cmd() {
   cmd="tailscale up"
-  
-  # 将 PARAMS_LIST 内容写入临时文件
   temp_file=$(mktemp)
   echo "$PARAMS_LIST" > "$temp_file"
-  
+
   while IFS= read -r line; do
     key=$(echo "$line" | cut -d':' -f1)
     type=$(echo "$line" | cut -d':' -f2)
     var_name=$(echo "$key" | tr '-' '_' | tr '[:lower:]' '[:upper:]')
     eval val=\$$var_name
     [ -z "$val" ] && continue
-    
+
     if [ "$type" = "flag" ]; then
       cmd="$cmd $key"
-      log_info  "正在拼接命令: $key"
+      log_info "正在拼接命令: $key"
     else
       cmd="$cmd $key=$val"
-      log_info  "正在拼接命令: $key=$val"
+      log_info "正在拼接命令: $key=$val"
     fi
-  done < "$temp_file"  # 从临时文件中读取内容
-  
-  # 删除临时文件
+  done < "$temp_file"
+
   rm -f "$temp_file"
 
   log_info "⏳ 生成命令："
@@ -168,14 +169,13 @@ generate_cmd() {
   log_info "🟢  是否立即执行该命令？[y/N]: " 1
   read runnow
   if [ -z "$runnow" ] || [ "$runnow" = "y" ] || [ "$runnow" = "Y" ]; then
-      log_info "🚀  正在执行 tailscale up ..."
-      eval "$cmd"
-      log_info "⏳  请按回车继续..." 1
-      read _
-      exit 0
+    log_info "🚀  正在执行 tailscale up ..."
+    eval "$cmd"
+    log_info "⏳  请按回车继续..." 1
+    read _
+    exit 0
   fi
 }
-
 
 # 主函数
 main() {
