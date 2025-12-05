@@ -1,24 +1,24 @@
 #!/bin/sh
 set -e
-
+clear
 CONFIG_DIR="/etc/tailscale"
 mkdir -p "$CONFIG_DIR"
 INST_CONF="$CONFIG_DIR/install.conf"
 
 if [ -f /tmp/tailscale-use-direct ]; then
+    rm -f /tmp/tailscale-use-direct
     echo "GITHUB_DIRECT=true" > "$INST_CONF"
     GITHUB_DIRECT=true
-    CUSTOM_PROXY_URL=""
-    rm -f /tmp/tailscale-use-direct
+    CUSTOM_RAW_PROXY="https://raw.githubusercontent.com"
 else
     echo "GITHUB_DIRECT=false" > "$INST_CONF"
     GITHUB_DIRECT=false
-    CUSTOM_PROXY_URL="https://ghproxy.ch3ng.top/"
+    CUSTOM_RAW_PROXY="https://ghraw.ch3ng.top"
 fi
 
-SCRIPTS_TGZ_URL="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/tailscale-openwrt-scripts.tar.gz"
-SCRIPTS_PATH="/tmp/tailscale-openwrt-scripts.tar.gz"
-PRETEST_MIRRORS_SH_URL="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/pretest_mirrors.sh"
+SCRIPTS_TGZ_PATH="/tmp/tailscale-openwrt-scripts.tar.gz"
+SCRIPTS_TGZ_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/main/tailscale-openwrt-scripts.tar.gz"
+PRETEST_MIRRORS_SH_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/main/pretest_mirrors.sh"
 
 # 预先计算的校验和
 EXPECTED_CHECKSUM_SHA256="7327e86855a09621507621967bd37d66398ee8ade6f0f983a742726935d0ce7c"
@@ -26,25 +26,40 @@ EXPECTED_CHECKSUM_MD5="155e4a64ec58f6d8f2090b57ad3cea29"
 TIME_OUT=30
 
 log_info() {
-    echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $1"
+    echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [INSTALL] [INFO] $1"
     [ $# -eq 2 ] || echo
 }
 
 log_warn() {
-    echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [WARN] $1"
+    echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [INSTALL] [WARN] $1"
     [ $# -eq 2 ] || echo
 }
 
 log_error() {
-    echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1"
+    echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [INSTALL] [ERROR] $1"
     [ $# -eq 2 ] || echo
 }
 
 if ! command -v opkg >/dev/null 2>&1; then
-    log_error "❌ 未检测到 opkg 命令，当前系统可能不是 OpenWRT 或缺少包管理器"
-    log_error "❌ 无法继续执行安装脚本"
+    log_error "❌  未检测到 opkg 命令，当前系统可能不是 OpenWRT 或缺少包管理器"
+    log_error "❌  无法继续执行安装脚本"
     exit 1
 fi
+
+sync_time() {
+    log_info "正在同步系统时间..."
+    # 尝试多个常见 NTP 服务器，直到成功
+    for server in ntp.aliyun.com time1.cloud.tencent.com pool.ntp.org; do
+        if ntpdate -u "$server" >/dev/null 2>&1 || ntpd -q -n -p "$server" >/dev/null 2>&1; then
+            log_info "时间同步成功（$server）"
+            return 0
+        fi
+    done
+    log_warn "所有 NTP 服务器都失败，尝试使用 HTTP 头时间"
+    http_time=$(curl -I -s --connect-timeout 5 https://www.baidu.com | grep -i '^date:' | awk '{print $3,$4,$5,$6,$7}')
+    [ -n "$http_time" ] && date -D "%d %b %Y %H:%M:%S %Z" -s "$http_time" && log_info "已用 HTTP 头设置时间"
+}
+sync_time
 
 # 检查是否已经安装所有必要软件包
 required_packages="libustream-openssl ca-bundle kmod-tun coreutils-timeout coreutils-nohup curl jq"
@@ -63,50 +78,50 @@ for package in $required_packages; do
     fi
 
     if ! opkg list-installed | grep -q "^$package"; then
-        log_warn "⚠️ 包 $package 未安装"
+        log_warn "⚠️  包 $package 未安装"
         need_install=1
     fi
 done
 
 if [ "$need_install" -eq 0 ]; then
-    log_info "✅ 已安装所有必要组件"
+    log_info "✅  已安装所有必要组件"
 else
-    log_info "🔄 正在更新 opkg 源..."
+    log_info "🔄  正在更新 opkg 源..."
     if ! opkg update 2>&1; then
-        log_error "⚠️ opkg update 失败，请检查网络连接或源配置，继续执行..."
+        log_error "⚠️  opkg update 失败，请检查网络连接或源配置，继续执行..."
     else
-        log_info "✅ opkg update 成功"
+        log_info "✅  opkg update 成功"
     fi
 
     for package in $required_packages; do
         # 在安装流程中才输出跳过提示
         if [ "$skip_openssl" -eq 1 ] && [ "$package" = "libustream-openssl" ]; then
-            log_info "✅ 检测到 libustream-mbedtls，跳过 libustream-openssl"
+            log_info "✅  检测到 libustream-mbedtls，跳过 libustream-openssl"
             continue
         fi
 
         if ! opkg list-installed | grep -q "^$package"; then
-            log_warn "⚠️ 包 $package 未安装，开始安装..."
+            log_warn "⚠️  包 $package 未安装，开始安装..."
             if opkg install "$package" 2>&1; then
-                log_info "✅ 包 $package 安装成功"
+                log_info "✅  包 $package 安装成功"
             else
                 # ★ 针对 jq 的特殊跳过逻辑 ★
                 if [ "$package" = "jq" ]; then
-                    log_warn "⚠️ 安装 jq 失败，将使用回退解析方式，继续执行"
+                    log_warn "⚠️  安装 jq 失败，将使用回退解析方式，继续执行"
                     continue
                 fi
 
                 # 针对 coreutils 的替代逻辑
                 if [ "$package" = "coreutils-timeout" ] || [ "$package" = "coreutils-nohup" ]; then
                     alt="coreutils"
-                    log_warn "⚠️ 安装 $package 失败，尝试安装 $alt 替代..."
+                    log_warn "⚠️  安装 $package 失败，尝试安装 $alt 替代..."
                     if opkg install $alt 2>&1; then
-                        log_info "✅ $alt 安装成功，可能已包含 $(echo $package | cut -d- -f2) 命令"
+                        log_info "✅  $alt 安装成功，可能已包含 $(echo $package | cut -d- -f2) 命令"
                         continue
                     fi
                 fi
 
-                log_error "❌ 安装 $package 失败，无法继续，请手动安装此包"
+                log_error "❌  安装 $package 失败，无法继续，请手动安装此包"
                 exit 1
             fi
         fi
@@ -115,10 +130,10 @@ else
     # 最终检查命令可用性
     for cmd in timeout nohup curl jq; do
         if ! command -v $cmd >/dev/null 2>&1; then
-            log_error "❌ 未检测到 $cmd 命令，请手动安装后重新执行脚本"
+            log_error "❌  未检测到 $cmd 命令，请手动安装后重新执行脚本"
             exit 1
         else
-            log_info "✅ $cmd 命令已可用"
+            log_info "✅  $cmd 命令已可用"
         fi
     done
 fi
@@ -163,88 +178,60 @@ verify_checksum() {
         return 1
     fi
 
-    log_info "✅  校验通过"
     return 0
 }
 
-# 下载文件的函数
 webget() {
-    # 参数说明：
-    # $1 下载路径
-    # $2 下载URL
-    # $3 输出控制 (echooff/echoon)
-    # $4 重定向控制 (rediroff)
-    local result=""
-
+    local dest="$1"
+    local url="$2"
     if command -v curl >/dev/null 2>&1; then
-        [ "$3" = "echooff" ] && local progress='-s' || local progress='-#'
-        [ -z "$4" ] && local redirect='-L' || local redirect=''
-        # 修正 curl 的参数：-o 用于指定输出文件
-        result=$(timeout "$TIME_OUT" curl -w "%{http_code}" -H "User-Agent: Mozilla/5.0 (curl-compatible)" $progress $redirect -o "$1" "$2")
-        # 判断返回的 HTTP 状态码是否为 2xx
-        if [[ "$result" =~ ^2 ]]; then
-            result="200"
-        else
-            result="non-200"
-        fi
+        timeout $TIME_OUT curl -sSL --fail -A "Mozilla/5.0" -o "$dest" "$url"
+        return $?
+    elif command -v wget >/dev/null 2>&1; then
+        timeout $TIME_OUT wget -q --no-check-certificate -O "$dest" "$url"
+        return $?
     else
-        if command -v wget >/dev/null 2>&1; then
-            [ "$3" = "echooff" ] && local progress='-q' || local progress='--show-progress'
-            [ "$4" = "rediroff" ] && local redirect='--max-redirect=0' || local redirect=''
-            local certificate='--no-check-certificate'
-            timeout "$TIME_OUT" wget --header="User-Agent: Mozilla/5.0" $progress $redirect $certificate -O "$1" "$2"
-            if [ $? -eq 0 ]; then
-                result="200"
-            else
-                result="non-200"
-            fi
-        else
-            echo "Error: Neither curl nor wget available"
-            return 1
-        fi
+        log_error "❌  curl 和 wget 都不可用"
+        return 1
     fi
-
-    [ "$result" = "200" ] && return 0 || return 1
 }
 
-# 使用自建代理
-proxy_url="${CUSTOM_PROXY_URL}https://github.com/${SCRIPTS_TGZ_URL}"
-direct_url="https://github.com/${SCRIPTS_TGZ_URL}"
-success=0
+scripts_tgz_url="${CUSTOM_RAW_PROXY}/${SCRIPTS_TGZ_URL_SUFFIX}"
 
-if [ "$GITHUB_DIRECT" = "true" ] ; then
-    log_info "📄  使用 GitHub 直连下载: $direct_url"
-    if webget "$SCRIPTS_PATH" "$direct_url" "echooff" && \
-       (verify_checksum "$SCRIPTS_PATH" "sha256" "$EXPECTED_CHECKSUM_SHA256" || \
-        verify_checksum "$SCRIPTS_PATH" "md5" "$EXPECTED_CHECKSUM_MD5"); then
-        success=1
-    fi
+if webget "$SCRIPTS_TGZ_PATH" "$scripts_tgz_url" "echooff"; then
+    log_info "📥  下载成功: $scripts_tgz_url"
 else
-    log_info "🔗  使用自建代理下载: $proxy_url"
-    if webget "$SCRIPTS_PATH" "$proxy_url" "echooff" && \
-       (verify_checksum "$SCRIPTS_PATH" "sha256" "$EXPECTED_CHECKSUM_SHA256" || \
-        verify_checksum "$SCRIPTS_PATH" "md5" "$EXPECTED_CHECKSUM_MD5"); then
-        success=1
-    else
-        log_info "🔗  代理失效，尝试直连: $direct_url"
-        if webget "$SCRIPTS_PATH" "$direct_url" "echooff" && \
-           (verify_checksum "$SCRIPTS_PATH" "sha256" "$EXPECTED_CHECKSUM_SHA256" || \
-            verify_checksum "$SCRIPTS_PATH" "md5" "$EXPECTED_CHECKSUM_MD5"); then
-            success=1
-        fi
-    fi
+    log_error "❌  下载失败"
+    exit 1
 fi
 
+sha_ok=0
+md5_ok=0
 
+if verify_checksum "$SCRIPTS_TGZ_PATH" "sha256" "$EXPECTED_CHECKSUM_SHA256"; then
+    log_info "🔐  SHA256 校验通过"
+    sha_ok=1
+else
+    log_warn "⚠️  SHA256 校验失败 (忽略, 尝试 MD5)"
+fi
 
-if [ "$success" -ne 1 ]; then
-    log_error "❌  镜像与直连均失败, 安装中止"
+if verify_checksum "$SCRIPTS_TGZ_PATH" "md5" "$EXPECTED_CHECKSUM_MD5"; then
+    log_info "🔐  MD5 校验通过"
+    md5_ok=1
+else
+    log_warn "⚠️  MD5 校验失败"
+fi
+
+if [ $sha_ok -eq 1 ] || [ $md5_ok -eq 1 ]; then
+    log_info "✅  下载脚本包 + 校验成功!"
+else
+    log_error "❌  校验失败，安装中止"
     exit 1
 fi
 
 # 解压脚本
 log_info "📦  解压脚本包..."
-tar -xzf "$SCRIPTS_PATH" -C "$CONFIG_DIR"
+tar -xzf "$SCRIPTS_TGZ_PATH" -C "$CONFIG_DIR"
 
 # 设置权限
 chmod +x "$CONFIG_DIR"/*.sh
@@ -276,19 +263,13 @@ EOF
 
 
 run_pretest_mirrors() {
-    log_info "🔄  下载 pretest_mirrors.sh 并执行测速..."
-
-    proxy_url="${CUSTOM_PROXY_URL}https://github.com/${PRETEST_MIRRORS_SH_URL}"
-    raw_url="https://github.com/${PRETEST_MIRRORS_SH_URL}"
-    if webget "/tmp/pretest_mirrors.sh" "$proxy_url" "echooff"; then
+    pretest_mirrors_sh_url="${CUSTOM_RAW_PROXY}/${PRETEST_MIRRORS_SH_URL_SUFFIX}"
+    log_info "🔄  下载 $pretest_mirrors_sh_url 并执行测速..."
+    if webget "/tmp/pretest_mirrors.sh" "$pretest_mirrors_sh_url" "echooff"; then
         sh /tmp/pretest_mirrors.sh
     else
-        log_info "🔗  代理失效，尝试 GitHub 直连: $raw_url"
-        if webget "/tmp/pretest_mirrors.sh" "$raw_url" "echooff"; then
-            sh /tmp/pretest_mirrors.sh
-        else
-            return 1
-        fi
+        log_info "❌  下载 pretest_mirrors.sh 失败, 请重试!"
+        return 1
     fi
 }
 
@@ -296,9 +277,17 @@ if [ "$GITHUB_DIRECT" = "true" ] ; then
     log_info "✅  使用Github直连, 跳过测速！"
 else
     if [ ! -f /etc/tailscale/proxies.txt ]; then
-        log_info "🔍 本地不存在 proxies.txt, 将下载镜像列表并测速, 请等待..."
-        if run_pretest_mirrors; then
+        log_info "🔍  本地不存在 proxies.txt, 将下载镜像列表并测速, 请等待..."
+        run_pretest_mirrors
+        ret=$?
+        if [ $ret -eq 0 ]; then
             log_info "✅  下载镜像列表并测速完成！"
+        elif [ $ret -eq 10 ]; then
+            log_info "👋  用户取消安装"
+            exit 0
+        elif [ $ret -eq 1 ]; then
+            log_info "❌  下载或测速失败, 无法继续!"
+            exit 1
         else
             log_error "❌  下载或测速失败, 无法继续!"
             exit 1
@@ -310,13 +299,13 @@ fi
 
 log_info "✅  配置工具安装完毕!"
 log_info "✅  运行 tailscale-helper 可以打开功能菜单"
-log_info "👋  回车直接执行, 输入其他字符退出......"
+log_info "👋  回车直接执行, 输入其他字符退出: " 1
 read choice
 if [ -z "$choice" ]; then
     tailscale-helper
 else
     log_info "👋  退出脚本....."
-    sleep 2
+    sleep 1
     clear
     exit 0
 fi

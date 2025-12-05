@@ -1,203 +1,243 @@
 #!/bin/sh
 
 set -e
+set -o pipefail
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh
+
 TIME_OUT=10
 CONFIG_DIR="/etc/tailscale"
-BIN_NAME="tailscaled-linux-amd64"
-BIN_FILE_URL="CH3NGYZ/small-tailscale-openwrt/releases/latest/download/$BIN_NAME"
-SUM_URL="CH3NGYZ/small-tailscale-openwrt/releases/latest/download/SHA256SUMS.txt"
-MIRROR_FILE_URL="CH3NGYZ/test-github-proxies/raw/refs/heads/main/proxies.txt"
 INST_CONF="$CONFIG_DIR/install.conf"
 safe_source "$INST_CONF"
-SUM_NAME="SHA256SUMS.txt"
+
+BIN_NAME="tailscaled-linux-amd64"
 BIN_PATH="/tmp/$BIN_NAME"
+SUM_NAME="SHA256SUMS.txt"
 SUM_PATH="/tmp/$SUM_NAME"
-VALID_MIRRORS="$CONFIG_DIR/valid_proxies.txt"
-TMP_VALID_MIRRORS="/tmp/valid_mirrors.tmp"
-MIRROR_LIST="$CONFIG_DIR/proxies.txt"
-rm -f "$TMP_VALID_MIRRORS"
-touch "$TMP_VALID_MIRRORS"
 
-if [ "$GITHUB_DIRECT" = "true" ]; then
-    CUSTOM_PROXY_URL=""
-else
-    CUSTOM_PROXY_URL="https://ghproxy.ch3ng.top/"
-fi
+BIN_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/releases/latest/download/$BIN_NAME"
+SHA256SUMS_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/releases/latest/download/$SUM_NAME"
+
+PROXIES_LIST_NAME="proxies.txt"
+PROXIES_LIST_PATH="$CONFIG_DIR/$PROXIES_LIST_NAME"
+PROXIES_LIST_URL_SUFFIX="CH3NGYZ/test-github-proxies/main/$PROXIES_LIST_NAME"
+
+VALID_MIRRORS_PATH="$CONFIG_DIR/valid_proxies.txt"
+TMP_VALID_MIRRORS_PATH="/tmp/valid_mirrors.tmp"
+rm -f "$TMP_VALID_MIRRORS_PATH"
+touch "$TMP_VALID_MIRRORS_PATH"
+
+# ========= URL 配置 =========
+set_direct_mode() {
+    CUSTOM_RELEASE_PROXY="https://github.com"
+    CUSTOM_RAW_PROXY="https://raw.githubusercontent.com"
+}
+
+set_proxy_mode() {
+    CUSTOM_RELEASE_PROXY="https://ghproxy.ch3ng.top/https://github.com"
+    CUSTOM_RAW_PROXY="https://ghraw.ch3ng.top"
+}
+
+[ "$GITHUB_DIRECT" = "true" ] && set_direct_mode || set_proxy_mode
 
 
+# ========= 日志 =========
 log_info() {
-    echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $1"
+    echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [PRETEST] [INFO] $1"
     [ $# -eq 2 ] || echo
 }
 
 log_warn() {
-    echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [WARN] $1"
+    echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [PRETEST] [WARN] $1"
     [ $# -eq 2 ] || echo
 }
 
 log_error() {
-    echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1"
+    echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [PRETEST] [ERROR] $1"
     [ $# -eq 2 ] || echo
 }
 
-# 下载函数
+# ========= 统一下载函数 =========
 webget() {
-    local result=""
+    local dest="$1"
+    local url="$2"
     if command -v curl >/dev/null 2>&1; then
-        [ "$3" = "echooff" ] && local progress='-s' || local progress='-#'
-        [ -z "$4" ] && local redirect='-L' || local redirect=''
-        result=$(timeout $TIME_OUT curl -w %{http_code} -H "User-Agent: Mozilla/5.0 (curl-compatible)" $progress $redirect -ko "$1" "$2")
-        [ -n "$(echo "$result" | grep -e ^2)" ] && result="200"
+        timeout $TIME_OUT curl -sSL --fail -A "Mozilla/5.0" -o "$dest" "$url"
+        return $?
     elif command -v wget >/dev/null 2>&1; then
-        [ "$3" = "echooff" ] && local progress='-q' || local progress='--show-progress'
-        [ "$4" = "rediroff" ] && local redirect='--max-redirect=0' || local redirect=''
-        local certificate='--no-check-certificate'
-        timeout $TIME_OUT wget --header="User-Agent: Mozilla/5.0" $progress $redirect $certificate -O "$1" "$2"
-        [ $? -eq 0 ] && result="200"
+        timeout $TIME_OUT wget -q --no-check-certificate -O "$dest" "$url"
+        return $?
     else
-        log_error "❌  错误：curl 和 wget 都不可用"
+        log_error "❌  curl 和 wget 都不可用"
         return 1
     fi
-    [ "$result" = "200" ] && return 0 || return 1
 }
 
-# 提前下载校验文件
-SUM_URL_PROXY="${CUSTOM_PROXY_URL}https://github.com/${SUM_URL}"
-SUM_URL_DIRECT="https://github.com/${SUM_URL}"
+# ========= 下载尝试逻辑（可重建 URL） =========
+rebuild_url() {
+    case "$1" in
+        sha)     echo "${CUSTOM_RELEASE_PROXY}/${SHA256SUMS_URL_SUFFIX}" ;;
+        proxies) echo "${CUSTOM_RAW_PROXY}/${PROXIES_LIST_URL_SUFFIX}" ;;
+    esac
+}
 
-if [ "$GITHUB_DIRECT" = "true" ] ; then
-    log_info "📄  使用 GitHub 直连下载: $SUM_URL_DIRECT"
-    if ! webget "$SUM_PATH" "$SUM_URL_DIRECT" "echooff"; then
-        log_error "❌  无法下载校验文件（直连失败）"
-        exit 1
-    fi
-else
-    log_info "🔗  使用自建代理下载: $SUM_URL_PROXY"
-    if ! webget "$SUM_PATH" "$SUM_URL_PROXY" "echooff"; then
-        log_info "🔗  代理失效，尝试直连: $SUM_URL_DIRECT"
-        if ! webget "$SUM_PATH" "$SUM_URL_DIRECT" "echooff"; then
-            log_error "❌  无法下载校验文件（代理+直连均失败）"
+download_with_retry() {
+    local dest="$1" type="$2" prefix="$3"
+    local max_retry=3
+    local attempt=1
+
+    # 初次构建 URL（默认镜像）
+    local url
+    url="$(rebuild_url "$type")"
+
+    while true; do
+        attempt=1
+        while [ $attempt -le $max_retry ]; do
+            log_info "⏳  下载 $type 文件 [$attempt/$max_retry]：$url → $dest"
+
+            if webget "$dest" "$url"; then
+                return 0
+            fi
+
+            log_warn "❌  下载 $type 失败 [$attempt/$max_retry]"
+            attempt=$((attempt + 1))
+        done
+
+        # ⛔ 走到这里说明同一个镜像 3 次都失败
+        log_warn "⚠  当前镜像连续 $max_retry 次下载失败，需重新配置镜像"
+        
+        local suffix
+        case "$type" in
+            sha)     suffix="${SHA256SUMS_URL_SUFFIX}" ;;
+            proxies) suffix="${PROXIES_LIST_URL_SUFFIX}" ;;
+        esac
+
+        if ! manual_fallback_with_reconfig "$prefix" "$suffix"; then
+            log_error "❌  镜像配置异常"
             exit 1
         fi
-    fi
-fi
 
-sha_expected=$(grep "$BIN_NAME" "$SUM_PATH" | grep -v "$BIN_NAME.build" | awk '{print $1}')
+        # 重新配置镜像后重新生成URL
+        url="$(rebuild_url "$type")"
 
-# 镜像测试函数（下载并验证 tailscaled）
-test_mirror() {
-    local mirror=$(echo "$1" | sed 's|/*$|/|')
-    local url_bin="${mirror}$BIN_FILE_URL"
-    local progress="$2"  # 当前/总数
-    log_info "⏳   测试[$progress] $url_bin"
-
-    local start=$(date +%s.%N)
-
-    if webget "$BIN_PATH" "$url_bin" "echooff" ; then
-        sha_actual=$(sha256sum "$BIN_PATH" | awk '{print $1}')
-        if [ "$sha_expected" = "$sha_actual" ]; then
-            local end=$(date +%s.%N)
-            local dl_time=$(awk "BEGIN {printf \"%.2f\", $end - $start}")
-            log_info "✅  用时 ${dl_time}s"
-            echo "$dl_time $mirror" >> "$TMP_VALID_MIRRORS"
-        else
-            log_warn "❌  Expected SHA256: $sha_expected"
-            log_warn "❌  Actual   SHA256: $sha_actual"
-            log_warn "❌  校验失败"
+        # 如果用户选择“强制直连”，manual_fallback_with_reconfig 会处理
+        if [ "$GLOBAL_DIRECT_MODE" = "1" ]; then
+            log_info "🔁  已进入直连模式，重试下载"
         fi
-    else
-        log_warn "❌  下载失败"
-    fi
-    rm -f "$BIN_PATH" "$SUM_PATH"
+    done
 }
 
-# 手动回退逻辑
-manual_fallback() {
-    log_info "🧩  手动选择镜像源："
-    log_info "     1) ✍️ 手动输入备选镜像  2) 🌐  使用直连  3) ❌  退出"
+force_direct_mode() {
+    set_direct_mode
+    sed -i -e '/^GITHUB_DIRECT=/d' -e '$aGITHUB_DIRECT=true' "$INST_CONF" 2>/dev/null || true
+    : > "$VALID_MIRRORS_PATH"
+    log_info "✅  已切换到 GitHub 直连模式"
+}
+
+# ========= 手动选镜像 =========
+manual_fallback_with_reconfig() {
+    local prefix="$1" suffix="$2"
+    log_info "镜像不可用，请选择："
+    log_info "  1) 手动输入镜像"
+    log_info "  2) 强制直连"
+    log_info "  3) 退出安装"
+
     while :; do
-        log_info "       请选择: " 1
-        read choice
-        case $choice in
+        log_info "请选择 1~3: " 1
+        read -r choice || choice=2
+
+        case "$choice" in
             1)
-                log_info "⏳  输入镜像URL (需要和 $MIRROR_FILE_URL 拼凑后能下载此文件，如 https://ghproxy.example.com/https://github.com/): " 1
-                read  mirror
-                mirror=$(echo "$mirror" | sed 's|/*$|/|')
-                if echo "$mirror" | grep -qE '^https?://'; then
-                    echo "$mirror" > "$MIRROR_LIST"
-                    test_mirror "$mirror"
-                    [ -s "$TMP_VALID_MIRRORS" ] && sort -n "$TMP_VALID_MIRRORS" | awk '{print $2}' > "$VALID_MIRRORS"
-                    return 0
-                else
-                    log_warn "⚠️  地址必须以 http:// 或 https:// 开头"
-                fi
+                log_info "> 请输入您提供的镜像地址,"
+                log_info "> 镜像地址需要与 $suffix 拼凑后能下载此文件,"
+                log_info "> 且镜像地址以 https:// 开头, 以 / 结尾,"
+                log_info "> 例如: $prefix: " 1
+                read -r input
+                [ -z "$input" ] && continue
+                case "$input" in
+                    http*://*)
+                        mirror="${input%/}"
+                        CUSTOM_RELEASE_PROXY="${mirror}"
+                        CUSTOM_RAW_PROXY="${mirror}"
+                        echo "$mirror" > "$VALID_MIRRORS_PATH"
+                        log_info "✅  已切换至镜像：$mirror"
+                        return 0 ;;
+                esac
+                log_warn "❌  无效地址"
                 ;;
-            2)
-                touch "$VALID_MIRRORS"  # 空文件表示直连
-                return 1
-                ;;
-            3)
-                exit 1
-                ;;
+            2) force_direct_mode; return 0 ;;
+            3) exit 10 ;;
+            *) log_warn "⏳  请输入 1~3: " 1;;
         esac
     done
 }
 
-# 下载镜像列表
-MIRROR_FILE_URL_PROXY="${CUSTOM_PROXY_URL}https://github.com/${MIRROR_FILE_URL}"
-MIRROR_FILE_URL_DIRECT="https://github.com/${MIRROR_FILE_URL}"
+# ========= STEP 1：下载校验文件 =========
+download_with_retry "$SUM_PATH" sha "https://ghproxy.example.com/https://github.com/"
 
-log_info "🛠️  正在下载镜像列表，请耐心等待..."
-
-if webget "$MIRROR_LIST" "$MIRROR_FILE_URL_PROXY" "echooff"; then
-    log_info "✅  已更新镜像列表"
-else
-    log_warn "⚠️  无法通过代理下载镜像列表，尝试直连: $MIRROR_FILE_URL_DIRECT"
-    if webget "$MIRROR_LIST" "$MIRROR_FILE_URL_DIRECT" "echooff"; then
-        log_info "✅  已通过直连下载镜像列表"
-    else
-        log_warn "⚠️  无法下载镜像列表，尝试使用旧版本（如果存在）"
-        [ -s "$MIRROR_LIST" ] || {
-            log_error "❌  没有可用镜像列表，且下载失败"
-            manual_fallback
-            exit 1
-        }
-    fi
+sha_expected="$(grep -E " ${BIN_NAME}$" "$SUM_PATH" | awk '{print $1}')"
+if [ -z "$sha_expected" ]; then
+    log_error "❌  校验文件格式异常"
+    force_direct_mode
+    exit 1
 fi
 
+# ========= STEP 2：下载代理列表 =========
+download_with_retry "$PROXIES_LIST_PATH" proxies "https://ghproxy.example.com/https://raw.githubusercontent.com/"
+log_info "✅  代理列表下载成功"
 
-log_warn "⚠️  测试代理中，安装时仅测试5个正常连通的代理，每个代理最长需要 $TIME_OUT 秒，请耐心等待......"
+# ========= STEP 3：测速挑最快镜像 =========
+log_info "⏳  开始代理测速..."
 
-# 主流程：测试所有镜像，限制最多5个有效代理
-total=$(grep -cve '^\s*$' "$MIRROR_LIST")  # 排除空行
+total=$(grep -cve '^\s*$' "$PROXIES_LIST_PATH")
 index=0
 
-while read -r mirror; do
-    [[ -n "$mirror" && "$mirror" == http* ]] || continue
-    index=$((index + 1))
-    test_mirror "$mirror" "$index/$total"
-    
-    # 读取 TMP_VALID_MIRRORS 文件行数
-    valid_count=$(wc -l < "$TMP_VALID_MIRRORS" 2>/dev/null || echo 0)
-    
-    # 如果已经找到5个有效代理，则跳出循环
-    if [ "$valid_count" -ge 5 ]; then
-        log_info "✅ 已找到5个有效的代理，跳过剩余的代理"
-        break
+test_mirror() {
+    mirror="${1%/}/"
+    progress="$2"
+
+    local url="${mirror}${BIN_URL_SUFFIX}"
+    log_info "⏳  测试[$progress] $url"
+
+    local start=$(date +%s.%N)
+    if ! webget "$BIN_PATH" "$url"; then
+        log_warn "❌  下载失败"
+        return
     fi
-done < "$MIRROR_LIST"
 
+    local sha_actual
+    sha_actual=$(sha256sum "$BIN_PATH" | awk '{print $1}')
 
+    if [ "$sha_expected" != "$sha_actual" ]; then
+        log_warn "❌  SHA256 错误：$sha_actual"
+        return
+    fi
 
-# 排序并保存最佳镜像
-if [ -s "$TMP_VALID_MIRRORS" ]; then
-    sort -n "$TMP_VALID_MIRRORS" | awk '{print $2}' > "$VALID_MIRRORS"
-    log_info "🏆 最佳镜像: $(head -n1 "$VALID_MIRRORS")"
-elif [ -f "$VALID_MIRRORS" ] && [ ! -s "$VALID_MIRRORS" ]; then
-    log_info "🌐  选择了直连模式，跳过测速结果"
+    local end=$(date +%s.%N)
+    local cost=$(awk "BEGIN {printf \"%.2f\", $end - $start}")
+    log_info "✅  通过，用时 ${cost}s"
+
+    echo "$cost $mirror" >> "$TMP_VALID_MIRRORS_PATH"
+}
+
+while read -r mirror; do
+    case "$mirror" in http*) ;; *) continue ;; esac
+    index=$((index+1))
+    test_mirror "$mirror" "$index/$total"
+
+    valid_count=$(wc -l < "$TMP_VALID_MIRRORS_PATH")
+    [ "$valid_count" -ge 3 ] && log_info "✅  已找到 3 个有效代理，提前结束测速" && break
+done < "$PROXIES_LIST_PATH"
+
+rm -f "$BIN_PATH"
+
+# ========= STEP 4：保存最佳镜像 =========
+if [ -s "$TMP_VALID_MIRRORS_PATH" ]; then
+    sort -n "$TMP_VALID_MIRRORS_PATH" | awk '{print $2}' > "$VALID_MIRRORS_PATH"
+    log_info "🏆  最佳镜像：$(head -n1 "$VALID_MIRRORS_PATH")"
 else
-    manual_fallback
+    log_info "❌  未找到可用代理, 安装失败, 请考虑使用直连模式"
+    exit 1
 fi
 
-rm -f "$TMP_VALID_MIRRORS"
+rm -f "$TMP_VALID_MIRRORS_PATH"
+exit 0
