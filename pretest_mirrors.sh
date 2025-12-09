@@ -2,12 +2,12 @@
 
 set -e
 set -o pipefail
-[ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh
 
-TIME_OUT=10
+[ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh && safe_source "$INST_CONF"
+
+TIME_OUT=20
 CONFIG_DIR="/etc/tailscale"
 INST_CONF="$CONFIG_DIR/install.conf"
-safe_source "$INST_CONF"
 
 BIN_NAME="tailscaled-linux-amd64"
 BIN_PATH="/tmp/$BIN_NAME"
@@ -19,7 +19,7 @@ SHA256SUMS_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/releases/latest/download/
 
 PROXIES_LIST_NAME="proxies.txt"
 PROXIES_LIST_PATH="$CONFIG_DIR/$PROXIES_LIST_NAME"
-PROXIES_LIST_URL_SUFFIX="CH3NGYZ/test-github-proxies/main/$PROXIES_LIST_NAME"
+PROXIES_LIST_URL_SUFFIX="CH3NGYZ/test-github-proxies/raw/refs/heads/main/$PROXIES_LIST_NAME"
 
 VALID_MIRRORS_PATH="$CONFIG_DIR/valid_proxies.txt"
 TMP_VALID_MIRRORS_PATH="/tmp/valid_mirrors.tmp"
@@ -29,12 +29,12 @@ touch "$TMP_VALID_MIRRORS_PATH"
 # ========= URL 配置 =========
 set_direct_mode() {
     CUSTOM_RELEASE_PROXY="https://github.com"
-    CUSTOM_RAW_PROXY="https://raw.githubusercontent.com"
+    CUSTOM_RAW_PROXY="https://github.com"
 }
 
 set_proxy_mode() {
-    CUSTOM_RELEASE_PROXY="https://ghproxy.ch3ng.top/https://github.com"
-    CUSTOM_RAW_PROXY="https://ghraw.ch3ng.top"
+    CUSTOM_RELEASE_PROXY="https://gh.ch3ng.top"
+    CUSTOM_RAW_PROXY="https://gh.ch3ng.top"
 }
 
 [ "$GITHUB_DIRECT" = "true" ] && set_direct_mode || set_proxy_mode
@@ -56,20 +56,41 @@ log_error() {
     [ $# -eq 2 ] || echo
 }
 
-# ========= 统一下载函数 =========
 webget() {
-    local dest="$1"
+    # $1 输出文件
+    # $2 URL
+    # $3 是否静默: echooff/echoon
+    # $4 是否禁止重定向: rediroff
+
+    local outfile="$1"
     local url="$2"
+
+    # 控制输出
+    local quiet=""
+    [ "$3" = "echooff" ] && quiet="-s" || quiet=""
+
+    # 控制重定向
+    local redirect="-L"
+    [ "$4" = "rediroff" ] && redirect=""
+
     if command -v curl >/dev/null 2>&1; then
-        timeout $TIME_OUT curl -sSL --fail -A "Mozilla/5.0" -o "$dest" "$url"
+        timeout "$TIME_OUT" curl $quiet $redirect -o "$outfile" -H "User-Agent: Mozilla" "$url"
         return $?
-    elif command -v wget >/dev/null 2>&1; then
-        timeout $TIME_OUT wget -q --no-check-certificate -O "$dest" "$url"
-        return $?
-    else
-        log_error "❌  curl 和 wget 都不可用"
-        return 1
     fi
+
+    if command -v wget >/dev/null 2>&1; then
+        local q="--show-progress"
+        [ "$3" = "echooff" ] && q="-q"
+
+        local r=""
+        [ "$4" = "rediroff" ] && r="--max-redirect=0"
+
+        timeout "$TIME_OUT" wget $q $r --no-check-certificate -O "$outfile" "$url"
+        return $?
+    fi
+
+    log_error "❌ curl 和 wget 都不存在"
+    return 1
 }
 
 # ========= 下载尝试逻辑（可重建 URL） =========
@@ -94,7 +115,7 @@ download_with_retry() {
         while [ $attempt -le $max_retry ]; do
             log_info "⏳  下载 $type 文件 [$attempt/$max_retry]：$url → $dest"
 
-            if webget "$dest" "$url"; then
+            if webget "$dest" "$url" "echooff"; then
                 return 0
             fi
 
@@ -171,8 +192,8 @@ manual_fallback_with_reconfig() {
     done
 }
 
-# ========= STEP 1：下载校验文件 =========
-download_with_retry "$SUM_PATH" sha "https://ghproxy.example.com/https://github.com/"
+# ========= STEP 1：下载校验文件 ========= $3 为 提示语中的例镜像
+download_with_retry "$SUM_PATH" sha "https://gh.ch3ng.top/"
 
 sha_expected="$(grep -E " ${BIN_NAME}$" "$SUM_PATH" | awk '{print $1}')"
 if [ -z "$sha_expected" ]; then
@@ -181,8 +202,8 @@ if [ -z "$sha_expected" ]; then
     exit 1
 fi
 
-# ========= STEP 2：下载代理列表 =========
-download_with_retry "$PROXIES_LIST_PATH" proxies "https://ghproxy.example.com/https://raw.githubusercontent.com/"
+# ========= STEP 2：下载代理列表 ========= $3 为 提示语中的例镜像
+download_with_retry "$PROXIES_LIST_PATH" proxies "https://gh.ch3ng.top/"
 log_info "✅  代理列表下载成功"
 
 # ========= STEP 3：测速挑最快镜像 =========
@@ -199,7 +220,7 @@ test_mirror() {
     log_info "⏳  测试[$progress] $url"
 
     local start=$(date +%s.%N)
-    if ! webget "$BIN_PATH" "$url"; then
+    if ! webget "$BIN_PATH" "$url" "echooff"; then
         log_warn "❌  下载失败"
         return
     fi

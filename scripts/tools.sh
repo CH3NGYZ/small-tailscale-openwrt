@@ -40,45 +40,59 @@ safe_source() {
     fi
 }
 
-
-# 通用下载函数 (兼容curl/wget)
 webget() {
-    # 参数说明：
-    # $1 下载路径
-    # $2 下载URL
-    # $3 输出控制 (echooff/echoon)
-    # $4 重定向控制 (rediroff)
-    local result=""
+    # $1 输出文件
+    # $2 URL
+    # $3 是否静默: echooff
+    # $4 禁止重定向: rediroff
+    local outfile="$1"
+    local url="$2"
 
+    local ua="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0"
+
+    # 是否静默
+    local quiet=""
+    [ "$3" = "echooff" ] && quiet="-s"
+
+    # 是否禁用重定向
+    local redirect="-L"
+    [ "$4" = "rediroff" ] && redirect=""
+
+    # ----  优先使用 curl ----
     if command -v curl >/dev/null 2>&1; then
-        [ "$3" = "echooff" ] && local progress='-s' || local progress='-#'
-        [ -z "$4" ] && local redirect='-L' || local redirect=''
-        # 修正 curl 的参数：-o 用于指定输出文件
-        result=$(timeout $TIME_OUT curl -w "%{http_code}" -H "User-Agent: Mozilla/5.0 (curl-compatible)" $progress $redirect -o "$1" "$2")
-        # 判断返回的 HTTP 状态码是否为 2xx
-        if [[ "$result" =~ ^2 ]]; then
-            result="200"
-        else
-            result="non-200"
-        fi
-    else
-        if command -v wget >/dev/null 2>&1; then
-            [ "$3" = "echooff" ] && local progress='-q' || local progress='--show-progress'
-            [ "$4" = "rediroff" ] && local redirect='--max-redirect=0' || local redirect=''
-            local certificate='--no-check-certificate'
-            timeout $TIME_OUT wget --header="User-Agent: Mozilla/5.0" $progress $redirect $certificate -O "$1" "$2"
-            if [ $? -eq 0 ]; then
-                result="200"
-            else
-                result="non-200"
-            fi
-        else
-            log_error "Error: Neither curl nor wget available"
-            return 1
-        fi
+        http_code=$(timeout "$TIME_OUT" curl $quiet $redirect \
+            -H "User-Agent: $ua" \
+            -w "%{http_code}" \
+            -o "$outfile" \
+            "$url" 2>/dev/null)
+
+        [[ "$http_code" =~ ^2 ]] && return 0 || return 1
     fi
 
-    [ "$result" = "200" ] && return 0 || return 1
+    # ----  回退到 wget ----
+    if command -v wget >/dev/null 2>&1; then
+        local q="--show-progress"
+        [ "$3" = "echooff" ] && q="-q"
+
+        local r=""
+        [ "$4" = "rediroff" ] && r="--max-redirect=0"
+
+        # wget 不直接返回 HTTP 状态码，需要解析 headers
+        headers=$(mktemp)
+        timeout "$TIME_OUT" wget $q $r \
+            --server-response --no-check-certificate \
+            --header="User-Agent: $ua" \
+            -O "$outfile" "$url" 2>"$headers"
+
+        # 提取最后的 HTTP 状态码
+        http_code=$(grep -oE 'HTTP/[0-9\.]+ [0-9]+' "$headers" | tail -n1 | awk '{print $2}')
+        rm -f "$headers"
+
+        [[ "$http_code" =~ ^2 ]] && return 0 || return 1
+    fi
+
+    log_error "❌ curl 和 wget 都不存在"
+    return 1
 }
 
 

@@ -6,6 +6,7 @@
 [![Stars](https://img.shields.io/github/stars/CH3NGYZ/small-tailscale-openwrt)](https://github.com/CH3NGYZ/small-tailscale-openwrt/stargazers)
 
 ### 脚本目前只在下列系统上测试通过, 其他系统请自测, 可能还有点小 bug, 如发现问题请及时提 [issue](https://github.com/CH3NGYZ/small-tailscale-openwrt/issues/new) 反馈~
+
 - x86_64
   - [iStoreOS-24.10.4-2025102410](https://site.istoreos.com/firmware/download?devicename=x86_64&firmware=iStoreOS)
   - [EzOpWrt-Vip-Super-202510010716-6.6.106](https://github.com/sirpdboy/openwrt?tab=readme-ov-file#%E5%9B%BA%E4%BB%B6%E4%B8%8B%E8%BD%BD)
@@ -40,13 +41,13 @@
 ```bash
 # 代理版
  rm -rf /etc/tailscale /tmp/tailscale-use-direct /tmp/install.sh
- URL="https://ghproxy.ch3ng.top/https://github.com/CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh"
+ URL="https://gh.ch3ng.top/CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh"
  (command -v curl >/dev/null && curl -fSL "$URL" -o /tmp/install.sh || wget "$URL" -O /tmp/install.sh) || { echo 下载失败; exit 1; }
  sh /tmp/install.sh || { echo 执行失败; exit 1; }
-  
+
 ```
 
-##### 请注意, 如果您开启了代理，下载及更新可能会出现网络问题，可以尝试使用下方的直连命令安装:
+##### 请注意，如果您开启了代理，下载及更新可能会出现网络问题，可以尝试使用下方的直连命令安装:
 
 ```bash
 # 直连版
@@ -55,7 +56,7 @@
  URL="https://github.com/CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh"
  (command -v curl >/dev/null && curl -fSL "$URL" -o /tmp/install.sh || wget "$URL" -O /tmp/install.sh) || { echo 下载失败; exit 1; }
  sh /tmp/install.sh || { echo 执行失败; exit 1; }
-  
+
 ```
 
 ### 2.启动管理工具
@@ -151,3 +152,4 @@ X --> Z[结束]
 ## Star History
 [![Star History Chart](https://api.star-history.com/svg?repos=CH3NGYZ/small-tailscale-openwrt&type=Date)](https://www.star-history.com/#CH3NGYZ/small-tailscale-openwrt&Date)
 
+```

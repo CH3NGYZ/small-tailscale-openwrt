@@ -1,44 +1,46 @@
 #!/bin/sh
 
 set -e
+
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh && safe_source "$INST_CONF"
 
-if [ "$GITHUB_DIRECT" = "true" ]; then
-    CUSTOM_PROXY_URL=""
-else
-    CUSTOM_PROXY_URL="https://ghproxy.ch3ng.top/"
-fi
+set_direct_mode() {
+    CUSTOM_RELEASE_PROXY="https://github.com"
+    CUSTOM_RAW_PROXY="https://github.com"
+    CUSTOM_API_PROXY="https://api.github.com"
+}
 
+set_proxy_mode() {
+    CUSTOM_RELEASE_PROXY="https://gh.ch3ng.top"
+    CUSTOM_RAW_PROXY="https://gh.ch3ng.top"
+    CUSTOM_API_PROXY="https://ghapi.ch3ng.top"
+}
+
+[ "$GITHUB_DIRECT" = "true" ] && set_direct_mode || set_proxy_mode
+
+GITHUB_API_LATEST_RELEASE_URL_SUFFIX="repos/CH3NGYZ/small-tailscale-openwrt/releases/latest"
 
 # 获取最新版本
 get_latest_version() {
-    local api_url="${CUSTOM_PROXY_URL}https://api.github.com/repos/CH3NGYZ/small-tailscale-openwrt/releases/latest"
+    local api_url="${CUSTOM_API_PROXY}/${GITHUB_API_LATEST_RELEASE_URL_SUFFIX}"
+    local tmp_json_file="/tmp/github_latest_release.json"
     local json=""
     local version=""
 
-    if command -v curl >/dev/null 2>&1; then
-        # echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] 使用 curl" >&2
-        json=$(curl -m 10 -fsSL "$api_url") || {
-            echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] ❌  错误：curl 获取版本信息失败。" >&2
-            return 1
-        }
-    elif command -v wget >/dev/null 2>&1; then
-        # echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] 使用 wget" >&2
-        json=$(wget --timeout=10 -qO- "$api_url") || {
-            echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] ❌  错误：wget 获取版本信息失败。" >&2
-            return 1
-        }
-    else
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] ❌  错误：找不到 curl 或 wget，请安装其中之一。" >&2
+    # 使用 webget 下载 JSON
+    if ! webget "$tmp_json_file" "$api_url" "echooff"; then
+        log_error "❌  错误：获取版本信息失败。"
         return 1
     fi
 
+    # 读取 JSON 内容
+    json=$(cat "$tmp_json_file")
+    rm -f "$tmp_json_file"
+
+    # 使用 jq 或 grep/sed 提取 tag_name
     if command -v jq >/dev/null 2>&1; then
-        # jq 解析单个对象
-        version=$(echo "$json" \
-            | jq -r '.tag_name // empty')
+        version=$(echo "$json" | jq -r '.tag_name // empty')
     else
-        # grep + sed 回退
         version=$(echo "$json" \
             | grep -o '"tag_name"[ ]*:[ ]*"[^"]*"' \
             | sed 's/.*"tag_name"[ ]*:[ ]*"\([^"]*\)".*/\1/' \
@@ -46,7 +48,7 @@ get_latest_version() {
     fi
 
     if [[ -z "$version" ]]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] ❌  错误：版本号为空" >&2
+        log_error "❌  错误：版本号为空"
         return 1
     fi
 
@@ -140,44 +142,44 @@ install_tailscale() {
     local mirror_list=$3
 
     local arch="$ARCH"
-    local pkg_name="tailscaled-linux-$arch"
-    local tmp_file="/tmp/tailscaled.$$"
-    local download_base="CH3NGYZ/small-tailscale-openwrt/releases/download/$version/"
+    local tailscale_temp_path="/tmp/tailscaled.$$"
+    local release_arch_filename="tailscaled-linux-$arch"
+    local release_version_suffix="CH3NGYZ/small-tailscale-openwrt/releases/download/$version"
 
     log_info "🔗  准备校验文件..."
     sha_file="/tmp/SHA256SUMS.$$"
     md5_file="/tmp/MD5SUMS.$$"
 
     # 下载校验文件
-    download_file "${download_base}SHA256SUMS.txt" "$sha_file" "$mirror_list" || log_warn "⚠️  无法获取 SHA256 校验文件"
-    download_file "${download_base}MD5SUMS.txt" "$md5_file" "$mirror_list" || log_warn "⚠️  无法获取 MD5 校验文件"
+    download_file "${release_version_suffix}/SHA256SUMS.txt" "$sha_file" "$mirror_list" || log_warn "⚠️  无法获取 SHA256 校验文件"
+    download_file "${release_version_suffix}/MD5SUMS.txt" "$md5_file" "$mirror_list" || log_warn "⚠️  无法获取 MD5 校验文件"
 
     sha256=""
     md5=""
-    [ -s "$sha_file" ] && sha256=$(get_checksum "$sha_file" "$pkg_name")
-    [ -s "$md5_file" ] && md5=$(get_checksum "$md5_file" "$pkg_name")
+    [ -s "$sha_file" ] && sha256=$(get_checksum "$sha_file" "$release_arch_filename")
+    [ -s "$md5_file" ] && md5=$(get_checksum "$md5_file" "$release_arch_filename")
 
     # 下载主程序并校验
     log_info "🔗  正在下载 Tailscale $version ($arch)..."
-    if ! download_file "$download_base$pkg_name" "$tmp_file" "$mirror_list" "$sha256"; then
+    if ! download_file "$release_version_suffix/$release_arch_filename" "$tailscale_temp_path" "$mirror_list" "$sha256"; then
         log_warn "⚠️  SHA256 校验失败，尝试使用 MD5..."
-        if ! download_file "$download_base$pkg_name" "$tmp_file" "$mirror_list" "$md5"; then
+        if ! download_file "$release_version_suffix/$release_arch_filename" "$tailscale_temp_path" "$mirror_list" "$md5"; then
             log_error "❌  校验失败，安装中止"
-            rm -f "$tmp_file"
+            rm -f "$tailscale_temp_path"
             exit 1
         fi
     fi
 
     # 安装
-    chmod +x "$tmp_file"
+    chmod +x "$tailscale_temp_path"
     if [ "$mode" = "local" ]; then
         mkdir -p /usr/local/bin
-        mv "$tmp_file" /usr/local/bin/tailscaled
+        mv "$tailscale_temp_path" /usr/local/bin/tailscaled
         ln -sf /usr/local/bin/tailscaled /usr/bin/tailscaled
         ln -sf /usr/local/bin/tailscaled /usr/bin/tailscale
         log_info "✅  安装到 /usr/local/bin/"
     else
-        mv "$tmp_file" /tmp/tailscaled
+        mv "$tailscale_temp_path" /tmp/tailscaled
         ln -sf /tmp/tailscaled /usr/bin/tailscaled
         ln -sf /tmp/tailscaled /usr/bin/tailscale
         log_info "✅  安装到 /tmp (内存模式)"
@@ -202,12 +204,16 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# 处理版本
 if [ "$VERSION" = "latest" ]; then
-    VERSION=$(get_latest_version) || {
-        log_error "❌  获取最新版本失败"
-        exit 1
-    }
+    set +e
+    while true; do
+        VERSION=$(get_latest_version)
+        if [ $? -eq 0 ] && [ -n "$VERSION" ]; then
+            break
+        fi
+        sleep 1
+    done
+    set -e
 fi
 
 # 干跑模式（只输出版本号）

@@ -1,6 +1,9 @@
 #!/bin/sh
+
 set -e
 clear
+
+TIME_OUT=20
 CONFIG_DIR="/etc/tailscale"
 mkdir -p "$CONFIG_DIR"
 INST_CONF="$CONFIG_DIR/install.conf"
@@ -9,21 +12,20 @@ if [ -f /tmp/tailscale-use-direct ]; then
     rm -f /tmp/tailscale-use-direct
     echo "GITHUB_DIRECT=true" > "$INST_CONF"
     GITHUB_DIRECT=true
-    CUSTOM_RAW_PROXY="https://raw.githubusercontent.com"
+    CUSTOM_RAW_PROXY="https://github.com"
 else
     echo "GITHUB_DIRECT=false" > "$INST_CONF"
     GITHUB_DIRECT=false
-    CUSTOM_RAW_PROXY="https://ghraw.ch3ng.top"
+    CUSTOM_RAW_PROXY="https://gh.ch3ng.top"
 fi
 
 SCRIPTS_TGZ_PATH="/tmp/tailscale-openwrt-scripts.tar.gz"
-SCRIPTS_TGZ_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/main/tailscale-openwrt-scripts.tar.gz"
-PRETEST_MIRRORS_SH_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/main/pretest_mirrors.sh"
+SCRIPTS_TGZ_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/tailscale-openwrt-scripts.tar.gz"
+PRETEST_MIRRORS_SH_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/pretest_mirrors.sh"
 
 # 预先计算的校验和
-EXPECTED_CHECKSUM_SHA256="7327e86855a09621507621967bd37d66398ee8ade6f0f983a742726935d0ce7c"
-EXPECTED_CHECKSUM_MD5="155e4a64ec58f6d8f2090b57ad3cea29"
-TIME_OUT=30
+EXPECTED_CHECKSUM_SHA256="d77571de174003c09aa0ce3602c087cfd5a873d8cd62a79e68a121abf28d0bae"
+EXPECTED_CHECKSUM_MD5="9223cb925d9e61efb7eefd2668bf97c0"
 
 log_info() {
     echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [INSTALL] [INFO] $1"
@@ -182,18 +184,40 @@ verify_checksum() {
 }
 
 webget() {
-    local dest="$1"
+    # $1 输出文件
+    # $2 URL
+    # $3 是否静默: echooff/echoon
+    # $4 是否禁止重定向: rediroff
+
+    local outfile="$1"
     local url="$2"
+
+    # 控制输出
+    local quiet=""
+    [ "$3" = "echooff" ] && quiet="-s" || quiet=""
+
+    # 控制重定向
+    local redirect="-L"
+    [ "$4" = "rediroff" ] && redirect=""
+
     if command -v curl >/dev/null 2>&1; then
-        timeout $TIME_OUT curl -sSL --fail -A "Mozilla/5.0" -o "$dest" "$url"
+        timeout "$TIME_OUT" curl $quiet $redirect -o "$outfile" -H "User-Agent: Mozilla" "$url"
         return $?
-    elif command -v wget >/dev/null 2>&1; then
-        timeout $TIME_OUT wget -q --no-check-certificate -O "$dest" "$url"
-        return $?
-    else
-        log_error "❌  curl 和 wget 都不可用"
-        return 1
     fi
+
+    if command -v wget >/dev/null 2>&1; then
+        local q="--show-progress"
+        [ "$3" = "echooff" ] && q="-q"
+
+        local r=""
+        [ "$4" = "rediroff" ] && r="--max-redirect=0"
+
+        timeout "$TIME_OUT" wget $q $r --no-check-certificate -O "$outfile" "$url"
+        return $?
+    fi
+
+    log_error "❌ curl 和 wget 都不存在"
+    return 1
 }
 
 scripts_tgz_url="${CUSTOM_RAW_PROXY}/${SCRIPTS_TGZ_URL_SUFFIX}"

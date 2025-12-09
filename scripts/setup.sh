@@ -1,17 +1,28 @@
 #!/bin/sh
 
 set -e
+clear
 . /etc/tailscale/tools.sh || { log_error "❌  加载 tools.sh 失败"; exit 1; }
 log_info "加载公共函数..."
 
 log_info "加载配置文件..."
 safe_source "$INST_CONF" || log_warn "⚠️  INST_CONF 未找到或无效，使用默认配置"
 
-if [ "$GITHUB_DIRECT" = "true" ]; then
-    CUSTOM_PROXY_URL=""
-else
-    CUSTOM_PROXY_URL="https://ghproxy.ch3ng.top/"
-fi
+set_direct_mode() {
+    CUSTOM_RELEASE_PROXY="https://github.com"
+    CUSTOM_RAW_PROXY="https://github.com"
+    CUSTOM_API_PROXY="https://api.github.com"
+}
+
+set_proxy_mode() {
+    CUSTOM_RELEASE_PROXY="https://gh.ch3ng.top"
+    CUSTOM_RAW_PROXY="https://gh.ch3ng.top"
+    CUSTOM_API_PROXY="https://ghapi.ch3ng.top"
+}
+
+[ "$GITHUB_DIRECT" = "true" ] && set_direct_mode || set_proxy_mode
+
+GITHUB_API_RELEASE_LIST_URL_SUFFIX="repos/ch3ngyz/small-tailscale-openwrt/releases"
 
 get_arch() {
     arch_raw=$(uname -m)
@@ -35,38 +46,6 @@ get_arch() {
     esac
     echo "$arch"
 }
-
-webgetcode() {
-    local url="$1"
-    local http_code=""
-
-    if command -v curl >/dev/null 2>&1; then
-        # echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] 使用 curl" >&2
-        http_code=$(curl -s -w "%{http_code}" -o response.json "$url")
-    elif command -v wget >/dev/null 2>&1; then
-        # echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] 使用 wget" >&2
-        wget --quiet --output-document=response.json "$url"
-        # 检查是否下载成功
-        if [[ $? -ne 0 ]]; then
-            echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] ❌错误：wget 下载失败。" >&2
-            exit 1
-        fi
-        # wget 无法直接取 code，只能通过重新发 HEAD 请求获取状态码
-        http_code=$(wget --spider --server-response "$url" 2>&1 | awk '/^  HTTP\/|^HTTP\//' | tail -1 | awk '{print $2}')
-    else
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] ❌错误：找不到 curl 或 wget，请安装其中之一。" >&2
-        exit 1
-    fi
-
-    if ! [[ "$http_code" =~ ^[0-9]{3}$ ]]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] ❌错误：无法获取有效的 HTTP 状态码，实际返回为：$http_code" >&2
-        exit 1
-    fi
-
-    echo "$http_code"
-}
-
-
 
 # 默认值
 MODE=""
@@ -97,88 +76,131 @@ done
 # 若无参数，进入交互模式
 if [ "$has_args" = false ]; then
     log_info
-    log_info "📮 请选择安装模式："
-    log_info "     1). 本地安装 (默认) 🏠"
-    log_info "     2). 内存安装 (临时) 💻"
-    log_info "     3). 退出           ⛔"
-    log_info "⏳  请输入选项 [1/2/3]: " 1
+    log_info "📮  请选择安装 Tailscale 模式："
+    log_info "     1/y/Y/直接回车). 本地安装  🏠"
+    log_info "     2/n/N        ). 内存安装  💻"
+    log_info "     0/e/E/其他字符). 退出安装  ⛔"
+    log_info "⏳  请输入选项: " 1
     read mode_input
 
     case "$mode_input" in
-        3) log_error "❌  已取消安装"; exit 1 ;;
-        2) MODE="tmp" ;;
-        *) MODE="local" ;;
+        1|"y"|"Y"|"") MODE="local" ;;
+        2|"n"|"N") MODE="tmp" ;;
+        *) log_error "❌  已取消安装"; exit 1 ;;
     esac
 
     log_info
-    log_info "🔄  是否启用自动更新？"
-    log_info "      1). 是 (默认) ✅"
-    log_info "      2). 否        ❌"
-    log_info "      3). 退出      ⛔"
-    log_info "⏳  请输入选项 [1/2/3]: " 1
+    log_info "🔄  是否启用 Tailscale 自动更新？"
+    log_info "     1/y/Y/直接回车). 启用更新  ✅"
+    log_info "     2/n/N        ). 禁用更新  ❌"
+    log_info "     0/e/E/其他字符). 退出安装  ⛔"
+    log_info "⏳  请输入选项: " 1
     read update_input
 
     case "$update_input" in
-        3) log_error "⛔  已取消安装"; exit 1 ;;
-        2) AUTO_UPDATE=false ;;
-        *) AUTO_UPDATE=true ;;
+        1|"y"|"Y"|"") AUTO_UPDATE=true ;;
+        2|"n"|"N") AUTO_UPDATE=false ;;
+        *) log_error "⛔  已取消安装"; exit 1 ;;
     esac
     log_info
-    log_info "🧩  正在拉取版本列表，请耐心等待..."
 
-    # 🧩 拉取 release tag 列表
-    HTTP_CODE=$(webgetcode "${CUSTOM_PROXY_URL}https://api.github.com/repos/ch3ngyz/small-tailscale-openwrt/releases?per_page=100")
+    PAGE=1
+    PER_PAGE=10
 
-    if [ "$HTTP_CODE" -ne 200 ]; then
-        log_error "❌  GitHub API 请求失败，状态码: $HTTP_CODE"
-        log_info "🔧  无法获取可用版本号，将跳过版本校验，使用 latest 版本"
-        VERSION="latest"
-    else
+    while true; do
+        clear
+        log_info "🧩 正在拉取版本列表（第 $PAGE 页，每页 $PER_PAGE 条）..."
+
+        API_URL="${CUSTOM_API_PROXY}/${GITHUB_API_RELEASE_LIST_URL_SUFFIX}?per_page=${PER_PAGE}&page=${PAGE}"
+        retry=0
+        while [ $retry -lt 3 ]; do
+            if webget "response.json" "$API_URL"; then
+                break
+            fi
+            retry=$((retry + 1))
+            log_error "❌ 拉取失败（$retry/3），重试中..."
+            sleep 1
+        done
+
+        if [ $retry -ge 3 ]; then
+            log_error "❌ 连续 3 次失败，取消操作"
+            exit 1
+        fi
+
+        # 从返回解析 tags
         TAGS_TMP="/tmp/.tags.$$"
-
         if command -v jq >/dev/null 2>&1; then
-            jq -r '.[] | select(.tag_name) | .tag_name' response.json \
-                | sed '/^$/d' \
-                | sort -r -u \
-                > "$TAGS_TMP"
+            jq -r '.[].tag_name // empty' response.json > "$TAGS_TMP"
         else
             grep -o '"tag_name"[ ]*:[ ]*"[^"]*"' response.json \
                 | sed 's/.*"tag_name"[ ]*:[ ]*"\([^"]*\)".*/\1/' \
-                | sort -r -u \
                 > "$TAGS_TMP"
         fi
-
         rm -f response.json
 
+        # 判断是否有 tags
         if [ ! -s "$TAGS_TMP" ]; then
-            log_error "❌  未找到任何版本标签"
-            VERSION="latest"
-        else
-            log_info "🔧  可用版本列表："
-            i=1
-            while read -r tag; do
-                log_info "  [$i] $tag"
-                eval "TAG_$i=\"$tag\""
-                i=$((i + 1))
-            done < "$TAGS_TMP"
-            total=$((i - 1))
-            log_info "⏳  请输入序号选择版本 (直接回车则使用最新版本): " 1
-            read index
-            index=$(echo "$index" | xargs)
-
-            if [ -z "$index" ]; then
-                VERSION="latest"
-            elif echo "$index" | grep -qE '^[0-9]+$' && [ "$index" -ge 1 ] && [ "$index" -le "$total" ]; then
-                eval "VERSION=\$TAG_$index"
-                log_info "✅  使用指定版本: $VERSION"
-            else
-                log_error "❌  无效的选择：$index"
-                exit 1
-            fi
-
-            rm -f "$TAGS_TMP"
+            log_info "⚠️ 本页没有更多版本了"
+            log_info "➡️ 输入 p 返回上一页，或 q 退出"
+            read op
+            case "$op" in
+                p|P) [ "$PAGE" -gt 1 ] && PAGE=$((PAGE - 1)) ;;
+                q|Q) exit 1 ;;
+            esac
+            continue
         fi
-    fi
+
+        # 展示本页 tags
+        i=1
+        log_info
+        log_info "🔧 可用版本列表（第 $PAGE 页）："
+        while read -r tag; do
+            log_info "  [$i] $tag"
+            eval "TAG_$i=\"$tag\""
+            i=$((i + 1))
+        done < "$TAGS_TMP"
+        total=$((i - 1))
+
+        log_info ""
+        log_info "⏳ 输入序号选择版本（回车=最新，n=下一页，p=上一页，q=退出）：" 1
+        read input
+        input=$(echo "$input" | xargs)
+
+        case "$input" in
+            "")  # 直接回车 = 使用 latest
+                VERSION="latest"
+                break
+                ;;
+            q|Q)
+                log_error "⛔ 已取消安装"
+                exit 1
+                ;;
+            n|N)
+                PAGE=$((PAGE + 1))
+                continue
+                ;;
+            p|P)
+                [ "$PAGE" -gt 1 ] && PAGE=$((PAGE - 1))
+                continue
+                ;;
+            *)
+                # 选择一个 tag
+                if echo "$input" | grep -qE '^[0-9]+$' \
+                    && [ "$input" -ge 1 ] \
+                    && [ "$input" -le "$total" ]; then
+
+                    eval "VERSION=\$TAG_$input"
+                    log_info "✅ 使用指定版本: $VERSION"
+                    break
+                else
+                    log_error "❌ 无效的选择"
+                    sleep 1
+                fi
+                ;;
+        esac
+    done
+    rm -f "$TAGS_TMP"
+    clear
 fi
 
 

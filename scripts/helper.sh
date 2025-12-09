@@ -2,21 +2,29 @@
 
 set -o pipefail
 
-SCRIPT_VERSION="v1.0.96"
+SCRIPT_VERSION="v1.1.2"
 
 # 检查并引入 /etc/tailscale/tools.sh 文件
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh
 safe_source "$INST_CONF"
 
-if [ "$GITHUB_DIRECT" = "true" ]; then
-    CUSTOM_PROXY_URL=""
-else
-    CUSTOM_PROXY_URL="https://ghproxy.ch3ng.top/"
-fi
+set_direct_mode() {
+    CUSTOM_RELEASE_PROXY="https://github.com"
+    CUSTOM_RAW_PROXY="https://github.com"
+    CUSTOM_API_PROXY="https://api.github.com"
+}
 
+set_proxy_mode() {
+    CUSTOM_RELEASE_PROXY="https://gh.ch3ng.top"
+    CUSTOM_RAW_PROXY="https://gh.ch3ng.top"
+    CUSTOM_API_PROXY="https://ghapi.ch3ng.top"
+}
 
+[ "$GITHUB_DIRECT" = "true" ] && set_direct_mode || set_proxy_mode
 
-# 自动判断 curl 和 wget 可用性
+HELPER_SCRIPT_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/scripts/helper.sh"
+INSTALL_SCRIPT_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh"
+
 get_download_tool() {
     if command -v curl > /dev/null 2>&1; then
         echo "curl"
@@ -32,7 +40,7 @@ get_download_tool() {
 download_tool=$(get_download_tool)
 
 get_remote_version() {
-    remote_ver_url="${CUSTOM_PROXY_URL}https://github.com/CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/scripts/helper.sh"
+    remote_ver_url="${CUSTOM_RAW_PROXY}/${HELPER_SCRIPT_URL_SUFFIX}"
     log_info "获取远程文件: ${remote_ver_url}"
     if [ "$download_tool" = "curl" ]; then
         # 设置 5 秒超时
@@ -82,7 +90,7 @@ handle_choice() {
         1)
             $CONFIG_DIR/setup.sh
             log_info "✅  请按回车继续..." 1
-            read khjfsdjkhfsd
+            read _
             ;;
         2)
             if ! command -v tailscale >/dev/null 2>&1; then
@@ -154,7 +162,7 @@ handle_choice() {
 
             fi
             log_info "✅  请按回车继续..." 1
-            read khjfsdjkhfsd
+            read _
             ;;
         3)  
             $CONFIG_DIR/tailscale_up_generater.sh
@@ -178,27 +186,28 @@ handle_choice() {
                 fi
             fi
             log_info "✅  请按回车继续..." 1
-            read khjfsdjkhfsd
+            read _
             ;;
         5)
             $CONFIG_DIR/uninstall.sh
-            log_info "✅  请按回车继续..." 1
-            read khjfsdjkhfsd
+            log_info "✅  请按回车退出..." 1
+            read _
+            exit 0
             ;;
         6)
             $CONFIG_DIR/update_ctl.sh
             log_info "✅  请按回车继续..." 1
-            read khjfsdjkhfsd
+            read _
             ;;
         7)
             $CONFIG_DIR/autoupdate.sh
             log_info "✅  请按回车继续..." 1
-            read khjfsdjkhfsd
+            read _
             ;;
         8)
             $CONFIG_DIR/github_direct_ctl.sh
             log_info "✅  请按回车继续..." 1
-            read khjfsdjkhfsd
+            read _
             ;;
         9)
             if [ -f "$VERSION_FILE" ]; then
@@ -207,12 +216,12 @@ handle_choice() {
                 log_info "⚠️  本地未记录版本信息, 可能未安装 Tailscale"
             fi
             log_info "✅  请按回车继续..." 1
-            read khjfsdjkhfsd
+            read _
             ;;
         10)
             log_info "$($CONFIG_DIR/fetch_and_install.sh --dry-run)"
             log_info "✅  请按回车继续..." 1
-            read khjfsdjkhfsd
+            read _
             ;;
         11)
             $CONFIG_DIR/notify_ctl.sh
@@ -220,10 +229,10 @@ handle_choice() {
         12)
             $CONFIG_DIR/test_mirrors.sh
             log_info "✅  请按回车继续..." 1
-            read khjfsdjkhfsd
+            read _
             ;;
         13)
-            URL="${CUSTOM_PROXY_URL}https://github.com/CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh"
+            URL="${CUSTOM_RAW_PROXY}/${INSTALL_SCRIPT_URL_SUFFIX}"
             tmpfile=$(mktemp)
             if [ "$download_tool" = "curl" ]; then
                 curl -sSL "$URL" -o "$tmpfile"
@@ -254,17 +263,17 @@ handle_choice() {
                 log_error "❌  没有找到日志文件，更新脚本可能未执行！"
             fi
             log_info "✅  请按回车继续..." 1
-            read khjfsdjkhfsd
+            read _
             ;;
         0)
             log_info "👋  退出脚本"
-            sleep 2
+            sleep 1
             clear
             exit 0
             ;;
         *)
             log_info "❌  无效选择, 请重新输入, 按回车继续..." 1
-            read khjfsdjkhfsd
+            read _
             ;;
     esac
 }
