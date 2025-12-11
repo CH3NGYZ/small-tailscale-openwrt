@@ -6,12 +6,9 @@ set -e
 safe_source "$INST_CONF"
 if [ "$GITHUB_DIRECT" = "true" ]; then
     log_info "🌐  不测速代理池..."
-    return 0
-else
-    CUSTOM_RELEASE_PROXY="https://gh.ch3ng.top"
-    CUSTOM_RAW_PROXY="https://gh.ch3ng.top"
-    CUSTOM_API_PROXY="https://ghapi.ch3ng.top"
+    exit 0
 fi
+set_proxy_mode
 
 TIME_OUT=20
 SUM_FILE_NAME="SHA256SUMS.txt"

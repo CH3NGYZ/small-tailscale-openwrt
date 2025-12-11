@@ -60,7 +60,7 @@ if [ "$MODE" = "local" ]; then
       echo "$remote" > "$VERSION_FILE"
       log_info "✅  更新成功至版本 $remote"
       log_info "🛠️  重启以应用最新版..."
-      /etc/init.d/tailscale restart || { log_error "❌  重启服务失败, 将启动服务"; /etc/init.d/tailscale start 2>&1 & > /dev/null 2>&1; }
+      /etc/init.d/tailscale restart || { log_error "❌  重启服务失败, 将启动服务"; /etc/init.d/tailscale start >/dev/null 2>&1 & }
       # 如果启用更新通知，发送通知
       if should_notify "update"; then
         send_notify "✅  Tailscale 已更新" "版本更新至 $remote"
@@ -104,7 +104,7 @@ elif [ "$MODE" = "tmp" ]; then
         echo "$version_to_use" > "$VERSION_FILE"
         log_info "✅  更新成功至版本 $version_to_use"
         log_info "🛠️  重启以应用最新版..."
-        /etc/init.d/tailscale restart || { log_error "❌  重启服务失败, 将启动服务"; /etc/init.d/tailscale start 2>&1 & > /dev/null 2>&1; }
+        /etc/init.d/tailscale restart || { log_error "❌  重启服务失败, 将启动服务"; /etc/init.d/tailscale start >/dev/null 2>&1 & }
 
         # 发送更新通知
         if should_notify "update"; then

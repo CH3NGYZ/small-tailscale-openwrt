@@ -7,20 +7,7 @@ SCRIPT_VERSION="v1.1.2"
 # 检查并引入 /etc/tailscale/tools.sh 文件
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh
 safe_source "$INST_CONF"
-
-set_direct_mode() {
-    CUSTOM_RELEASE_PROXY="https://github.com"
-    CUSTOM_RAW_PROXY="https://github.com"
-    CUSTOM_API_PROXY="https://api.github.com"
-}
-
-set_proxy_mode() {
-    CUSTOM_RELEASE_PROXY="https://gh.ch3ng.top"
-    CUSTOM_RAW_PROXY="https://gh.ch3ng.top"
-    CUSTOM_API_PROXY="https://ghapi.ch3ng.top"
-}
-
-[ "$GITHUB_DIRECT" = "true" ] && set_direct_mode || set_proxy_mode
+apply_github_mode
 
 HELPER_SCRIPT_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/scripts/helper.sh"
 INSTALL_SCRIPT_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh"
@@ -239,16 +226,15 @@ handle_choice() {
             else
                 wget -qO "$tmpfile" "$URL"
             fi
-            exec sh "$tmpfile" < /dev/tty
-            ret=$?
-            rm -f "$tmpfile"
-            if [ $ret -ne 0 ]; then
-                log_error "❌ 脚本更新失败, 脚本内置作者的代理失效"
-                exit 1
+            if [ $? -ne 0 ]; then
+                log_error "❌ 脚本下载失败, 脚本内置作者的代理失效"
+                rm -f "$tmpfile"
+                log_info "✅  请按回车继续..." 1
+                read _
+            else
+                # exec 会替换当前进程，不会返回
+                exec sh "$tmpfile" < /dev/tty
             fi
-            log_info "✅  请按回车重新加载脚本..."
-            read _
-            exec tailscale-helper
             ;;
         14)
             # 检查日志文件是否存在

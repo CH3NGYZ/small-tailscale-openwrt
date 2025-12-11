@@ -3,20 +3,7 @@
 set -e
 
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh && safe_source "$INST_CONF"
-
-set_direct_mode() {
-    CUSTOM_RELEASE_PROXY="https://github.com"
-    CUSTOM_RAW_PROXY="https://github.com"
-    CUSTOM_API_PROXY="https://api.github.com"
-}
-
-set_proxy_mode() {
-    CUSTOM_RELEASE_PROXY="https://gh.ch3ng.top"
-    CUSTOM_RAW_PROXY="https://gh.ch3ng.top"
-    CUSTOM_API_PROXY="https://ghapi.ch3ng.top"
-}
-
-[ "$GITHUB_DIRECT" = "true" ] && set_direct_mode || set_proxy_mode
+apply_github_mode
 
 GITHUB_API_LATEST_RELEASE_URL_SUFFIX="repos/CH3NGYZ/small-tailscale-openwrt/releases/latest"
 
@@ -47,7 +34,7 @@ get_latest_version() {
             | head -n1)
     fi
 
-    if [[ -z "$version" ]]; then
+    if [ -z "$version" ]; then
         log_error "❌  错误：版本号为空"
         return 1
     fi

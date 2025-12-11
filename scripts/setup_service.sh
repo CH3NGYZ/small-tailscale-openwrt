@@ -24,60 +24,46 @@ STOP=1
 
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh
 
+# 通用 procd 启动函数
+start_tailscaled() {
+  local bin_path=$1
+  $bin_path --cleanup > /dev/null 2>&1
+  procd_open_instance 
+  procd_set_param name tailscale
+  procd_set_param env TS_DEBUG_FIREWALL_MODE=auto
+  procd_set_param command $bin_path
+  procd_append_param command --port 41641
+  procd_append_param command --state /etc/config/tailscaled.state
+  procd_set_param respawn
+  procd_set_param stdout 1
+  procd_set_param stderr 1
+  procd_close_instance
+}
+
 start_service() {
   log_info "🛠️  加载服务启动配置..."
   safe_source "$INST_CONF"
   log_info "🛠️  当前的 MODE 为: $MODE"
+  
   if [ "$MODE" = "local" ]; then
-    # 本地模式的启动逻辑
     log_info "🛠️  启动 Tailscale (本地模式)..."
-    /usr/bin/tailscaled --cleanup > /dev/null 2>&1
-    procd_open_instance 
-    procd_set_param name tailscale
-    procd_set_param env TS_DEBUG_FIREWALL_MODE=auto
-    procd_set_param command /usr/bin/tailscaled
-    procd_append_param command --port 41641
-    procd_append_param command --state /etc/config/tailscaled.state
-    procd_set_param respawn
-    procd_set_param stdout 1
-    procd_set_param stderr 1
-    procd_close_instance
+    start_tailscaled /usr/bin/tailscaled
     log_info "🛠️  本地模式已启动, Tailscale服务日志文件：/var/log/tailscale.log"
-    # 本地模式自动更新
     log_info "🛠️  本地模式, 检测更新中, 日志:/tmp/tailscale_update.log"
     "$CONFIG_DIR/autoupdate.sh" 2>&1 | tee -a /tmp/tailscale_update.log
+    
   elif [ "$MODE" = "tmp" ]; then
     log_info "🛠️  启动 Tailscale (临时模式)..."
     if [ -x /tmp/tailscaled ]; then
-        log_info "✅  tmp模式, 文件已存在, 直接启动 tailscaled..."
-        /tmp/tailscaled --cleanup > /dev/null 2>&1
-        procd_open_instance 
-        procd_set_param name tailscale
-        procd_set_param env TS_DEBUG_FIREWALL_MODE=auto
-        procd_set_param command /tmp/tailscaled
-        procd_append_param command --port 41641
-        procd_append_param command --state /etc/config/tailscaled.state
-        procd_set_param respawn
-        procd_set_param stdout 1
-        procd_set_param stderr 1
-        procd_close_instance
-        log_info "🛠️  临时模式已启动, Tailscale服务日志文件：/var/log/tailscale.log"
+      log_info "✅  tmp模式, 文件已存在, 直接启动 tailscaled..."
+      start_tailscaled /tmp/tailscaled
+      log_info "🛠️  临时模式已启动, Tailscale服务日志文件：/var/log/tailscale.log"
     else
       log_info "🛠️  tmp模式, 文件不存在, 正在下载 tailscaled, 日志:/tmp/tailscale_update.log"
       "$CONFIG_DIR/autoupdate.sh" 2>&1 | tee -a /tmp/tailscale_update.log
       if [ -x /tmp/tailscaled ]; then
         log_info "✅  检测到文件已下载, 直接启动 tailscaled..."
-        /tmp/tailscaled --cleanup > /dev/null 2>&1
-        procd_open_instance 
-        procd_set_param name tailscale
-        procd_set_param env TS_DEBUG_FIREWALL_MODE=auto
-        procd_set_param command /tmp/tailscaled
-        procd_append_param command --port 41641
-        procd_append_param command --state /etc/config/tailscaled.state
-        procd_set_param respawn
-        procd_set_param stdout 1
-        procd_set_param stderr 1
-        procd_close_instance
+        start_tailscaled /tmp/tailscaled
         log_info "🛠️  临时模式已启动, Tailscale服务日志文件：/var/log/tailscale.log"
       else
         log_error "❌  错误：下载失败, 未找到文件, 无法启动."
@@ -91,15 +77,9 @@ start_service() {
 
 stop_service() {
   log_info "🛑  停止服务..."
-  # 确保正确停止 tailscaled
-  if [ -x "/usr/local/bin/tailscaled" ]; then
-    /usr/local/bin/tailscaled --cleanup >/dev/null 2>&1 || log_warn "⚠️  清理失败: /usr/local/bin/tailscaled"
-  fi
+  [ -x "/usr/local/bin/tailscaled" ] && /usr/local/bin/tailscaled --cleanup >/dev/null 2>&1 || true
+  [ -x "/tmp/tailscaled" ] && /tmp/tailscaled --cleanup >/dev/null 2>&1 || true
   
-  if [ -x "/tmp/tailscaled" ]; then
-    /tmp/tailscaled --cleanup >/dev/null 2>&1 || log_warn "⚠️  清理失败: /tmp/tailscaled"
-  fi
-
   if pgrep tailscaled >/dev/null 2>&1; then
     killall tailscaled >/dev/null 2>&1 || log_warn "⚠️  未能停止 tailscaled 服务"
   else

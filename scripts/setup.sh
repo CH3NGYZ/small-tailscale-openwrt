@@ -7,20 +7,7 @@ log_info "加载公共函数..."
 
 log_info "加载配置文件..."
 safe_source "$INST_CONF" || log_warn "⚠️  INST_CONF 未找到或无效，使用默认配置"
-
-set_direct_mode() {
-    CUSTOM_RELEASE_PROXY="https://github.com"
-    CUSTOM_RAW_PROXY="https://github.com"
-    CUSTOM_API_PROXY="https://api.github.com"
-}
-
-set_proxy_mode() {
-    CUSTOM_RELEASE_PROXY="https://gh.ch3ng.top"
-    CUSTOM_RAW_PROXY="https://gh.ch3ng.top"
-    CUSTOM_API_PROXY="https://ghapi.ch3ng.top"
-}
-
-[ "$GITHUB_DIRECT" = "true" ] && set_direct_mode || set_proxy_mode
+apply_github_mode
 
 GITHUB_API_RELEASE_LIST_URL_SUFFIX="repos/ch3ngyz/small-tailscale-openwrt/releases"
 
@@ -114,7 +101,7 @@ if [ "$has_args" = false ]; then
         API_URL="${CUSTOM_API_PROXY}/${GITHUB_API_RELEASE_LIST_URL_SUFFIX}?per_page=${PER_PAGE}&page=${PAGE}"
         retry=0
         while [ $retry -lt 3 ]; do
-            if webget "response.json" "$API_URL"; then
+            if webget "/tmp/response.json" "$API_URL"; then
                 break
             fi
             retry=$((retry + 1))
@@ -130,13 +117,13 @@ if [ "$has_args" = false ]; then
         # 从返回解析 tags
         TAGS_TMP="/tmp/.tags.$$"
         if command -v jq >/dev/null 2>&1; then
-            jq -r '.[].tag_name // empty' response.json > "$TAGS_TMP"
+            jq -r '.[].tag_name // empty' /tmp/response.json > "$TAGS_TMP"
         else
-            grep -o '"tag_name"[ ]*:[ ]*"[^"]*"' response.json \
+            grep -o '"tag_name"[ ]*:[ ]*"[^"]*"' /tmp/response.json \
                 | sed 's/.*"tag_name"[ ]*:[ ]*"\([^"]*\)".*/\1/' \
                 > "$TAGS_TMP"
         fi
-        rm -f response.json
+        rm -f /tmp/response.json
 
         # 判断是否有 tags
         if [ ! -s "$TAGS_TMP" ]; then

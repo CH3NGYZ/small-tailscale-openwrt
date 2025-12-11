@@ -12,6 +12,24 @@ TMP_VALID_MIRRORS="/tmp/valid_mirrors.tmp"
 REMOTE_SCRIPTS_VERSION_FILE="$CONFIG_DIR/remote_ts_scripts_version"
 TIME_OUT=30
 
+# GitHub 代理模式配置
+set_direct_mode() {
+    CUSTOM_RELEASE_PROXY="https://github.com"
+    CUSTOM_RAW_PROXY="https://github.com"
+    CUSTOM_API_PROXY="https://api.github.com"
+}
+
+set_proxy_mode() {
+    CUSTOM_RELEASE_PROXY="https://gh.ch3ng.top"
+    CUSTOM_RAW_PROXY="https://gh.ch3ng.top"
+    CUSTOM_API_PROXY="https://ghapi.ch3ng.top"
+}
+
+# 根据配置自动设置模式
+apply_github_mode() {
+    [ "$GITHUB_DIRECT" = "true" ] && set_direct_mode || set_proxy_mode
+}
+
 # 初始化日志系统
 log_info() {
     echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $1"
@@ -66,7 +84,7 @@ webget() {
             -o "$outfile" \
             "$url" 2>/dev/null)
 
-        [[ "$http_code" =~ ^2 ]] && return 0 || return 1
+        case "$http_code" in 2*) return 0 ;; *) return 1 ;; esac
     fi
 
     # ----  回退到 wget ----
@@ -88,11 +106,32 @@ webget() {
         http_code=$(grep -oE 'HTTP/[0-9\.]+ [0-9]+' "$headers" | tail -n1 | awk '{print $2}')
         rm -f "$headers"
 
-        [[ "$http_code" =~ ^2 ]] && return 0 || return 1
+        case "$http_code" in 2*) return 0 ;; *) return 1 ;; esac
     fi
 
     log_error "❌ curl 和 wget 都不存在"
     return 1
+}
+
+# URL 编码函数 (POSIX 兼容)
+urlencode() {
+    local str="$1"
+    local encoded=""
+    local i=0
+    local length=${#str}
+    while [ $i -lt $length ]; do
+        local c=$(printf '%s' "$str" | cut -c$((i + 1)))
+        case "$c" in
+            [a-zA-Z0-9._~-]) 
+                encoded="${encoded}${c}"
+                ;;
+            *)
+                encoded="${encoded}$(printf '%%%02X' "'$c")"
+                ;;
+        esac
+        i=$((i + 1))
+    done
+    printf '%s' "$encoded"
 }
 
 
@@ -137,27 +176,8 @@ send_notify() {
         send_via_curl_or_wget "https://sctapi.ftqq.com/$SERVERCHAN_KEY.send" "$data" "POST" && log_info "✅  Server酱 通知已发送"
     fi
 
-    # URL 编码函数
-    urlencode() {
-        local str="$1"
-        local length="${#str}"
-        i=0
-        while [ "$i" -lt "$length" ]; do
-            local c="${str:i:1}"
-            case "$c" in
-                [a-zA-Z0-9._-]) 
-                    printf "$c"
-                    ;;
-                *)
-                    printf "%%%02X" "'$c"
-                    ;;
-            esac
-            i=$((i + 1))
-        done
-    }
-
     # Bark
-    if [[ "$NOTIFY_BARK" == "1" && -n "$BARK_KEY" ]]; then
+    if [ "$NOTIFY_BARK" = "1" ] && [ -n "$BARK_KEY" ]; then
         title_enc=$(urlencode "$title")
         content_enc=$(urlencode "$content")
         
@@ -165,7 +185,7 @@ send_notify() {
         
         if command -v curl > /dev/null; then
             response=$(curl -sS "$url")
-            if [[ $? -eq 0 ]]; then
+            if [ $? -eq 0 ]; then
                 log_info "✅  Bark 通知已发送"
             else
                 log_error "❌  发送 Bark 通知失败，HTTP 状态码: $response"

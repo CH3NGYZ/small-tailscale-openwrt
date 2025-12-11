@@ -67,9 +67,12 @@ sync_time
 required_packages="libustream-openssl ca-bundle kmod-tun coreutils-timeout coreutils-nohup curl jq"
 need_install=0
 
+# 一次性获取已安装包列表（性能优化）
+installed_packages=$(opkg list-installed)
+
 # 如果已安装 libustream-mbedtls，则跳过 libustream-openssl
 skip_openssl=0
-if opkg list-installed | grep -q "^libustream-mbedtls"; then
+if echo "$installed_packages" | grep -q "^libustream-mbedtls"; then
     skip_openssl=1
 fi
 
@@ -79,7 +82,7 @@ for package in $required_packages; do
         continue
     fi
 
-    if ! opkg list-installed | grep -q "^$package"; then
+    if ! echo "$installed_packages" | grep -q "^$package"; then
         log_warn "⚠️  包 $package 未安装"
         need_install=1
     fi
@@ -102,7 +105,7 @@ else
             continue
         fi
 
-        if ! opkg list-installed | grep -q "^$package"; then
+        if ! echo "$installed_packages" | grep -q "^$package"; then
             log_warn "⚠️  包 $package 未安装，开始安装..."
             if opkg install "$package" 2>&1; then
                 log_info "✅  包 $package 安装成功"

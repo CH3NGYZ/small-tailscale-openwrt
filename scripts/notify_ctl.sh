@@ -91,31 +91,19 @@ edit_ntfy() {
     fi
 }
 
-# 切换通知开关
+# 切换配置开关（通用函数）
 toggle_setting() {
     local setting=$1
+    local show_log=${2:-false}
     if grep -q "^$setting=" "$NTF_CONF"; then
         current=$(grep "^$setting=" "$NTF_CONF" | cut -d= -f2)
         new_value=$([ "$current" = "1" ] && echo "0" || echo "1")
         sed -i "s|^$setting=.*|$setting=$new_value|" "$NTF_CONF"
+        [ "$show_log" = "true" ] && log_info "$setting 已切换为 $new_value"
     else
         # 如果配置项不存在，则默认设置为开启(1)
         echo "$setting=1" >> "$NTF_CONF"
-    fi
-}
-
-# 修改通知开关的值
-toggle_notify_option() {
-    local option=$1
-    if grep -q "^$option=" "$NTF_CONF"; then
-        current_value=$(grep "^$option=" "$NTF_CONF" | cut -d= -f2)
-        new_value=$([ "$current_value" = "1" ] && echo "0" || echo "1")
-        sed -i "s|^$option=.*|$option=$new_value|" "$NTF_CONF"
-        log_info "$option 已切换为 $new_value"
-    else
-        # 如果配置项不存在，则默认设置为开启(1)
-        echo "$option=1" >> "$NTF_CONF"
-        log_info "$option 设置为开启 (1)"
+        [ "$show_log" = "true" ] && log_info "$setting 设置为开启 (1)"
     fi
 }
 
@@ -138,9 +126,9 @@ while :; do
         4) toggle_setting "NOTIFY_SERVERCHAN" ;;
         5) toggle_setting "NOTIFY_BARK" ;;
         6) toggle_setting "NOTIFY_NTFY" ;;
-        7) toggle_notify_option "NOTIFY_UPDATE" ;;
-        8) toggle_notify_option "NOTIFY_MIRROR_FAIL" ;;
-        9) toggle_notify_option "NOTIFY_EMERGENCY" ;;
+        7) toggle_setting "NOTIFY_UPDATE" true ;;
+        8) toggle_setting "NOTIFY_MIRROR_FAIL" true ;;
+        9) toggle_setting "NOTIFY_EMERGENCY" true ;;
         10) test_notify ;;
         *) log_warn "❌  无效选择，请重新输入" ;;
     esac
