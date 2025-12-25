@@ -2,7 +2,7 @@
 
 set -o pipefail
 
-SCRIPT_VERSION="v1.1.2"
+SCRIPT_VERSION="v1.1.3"
 
 # 检查并引入 /etc/tailscale/tools.sh 文件
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh
@@ -31,10 +31,10 @@ get_remote_version() {
     log_info "获取远程文件: ${remote_ver_url}"
     if [ "$download_tool" = "curl" ]; then
         # 设置 5 秒超时
-        timeout 5 curl -sSL "$remote_ver_url" | grep -E '^SCRIPT_VERSION=' | cut -d'"' -f2 > "$REMOTE_SCRIPTS_VERSION_FILE"
+        timeout 5 curl -sSL -A "Tailscale-Helper" "$remote_ver_url" | grep -E '^SCRIPT_VERSION=' | cut -d'"' -f2 > "$REMOTE_SCRIPTS_VERSION_FILE"
     else
         # 设置 5 秒超时
-        timeout 5 wget -qO- "$remote_ver_url" | grep -E '^SCRIPT_VERSION=' | cut -d'"' -f2 > "$REMOTE_SCRIPTS_VERSION_FILE"
+        timeout 5 wget -qO- --header="User-Agent: Tailscale-Helper" "$remote_ver_url" | grep -E '^SCRIPT_VERSION=' | cut -d'"' -f2 > "$REMOTE_SCRIPTS_VERSION_FILE"
     fi
 }
 
@@ -222,9 +222,9 @@ handle_choice() {
             URL="${CUSTOM_RAW_PROXY}/${INSTALL_SCRIPT_URL_SUFFIX}"
             tmpfile=$(mktemp)
             if [ "$download_tool" = "curl" ]; then
-                curl -sSL "$URL" -o "$tmpfile"
+                curl -sSL -A "Tailscale-Helper" "$URL" -o "$tmpfile"
             else
-                wget -qO "$tmpfile" "$URL"
+                wget -qO "$tmpfile" --header="User-Agent: Tailscale-Helper" "$URL"
             fi
             if [ $? -ne 0 ]; then
                 log_error "❌ 脚本下载失败, 脚本内置作者的代理失效"

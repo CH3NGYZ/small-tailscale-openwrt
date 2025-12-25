@@ -66,7 +66,7 @@ webget() {
     local outfile="$1"
     local url="$2"
 
-    local ua="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0"
+    local ua="Tailscale-Helper"
 
     # 是否静默
     local quiet=""
@@ -79,7 +79,7 @@ webget() {
     # ----  优先使用 curl ----
     if command -v curl >/dev/null 2>&1; then
         http_code=$(timeout "$TIME_OUT" curl $quiet $redirect \
-            -H "User-Agent: $ua" \
+            -A "$ua" \
             -w "%{http_code}" \
             -o "$outfile" \
             "$url" 2>/dev/null)
@@ -154,15 +154,15 @@ send_notify() {
 
         if command -v curl > /dev/null; then
             if [ "$method" = "POST" ]; then
-                curl -sS -X POST "$url" -d "$data" -H "$headers"
+                curl -sS -A "Tailscale-Helper" -X POST "$url" -d "$data" -H "$headers"
             else
-                curl -sS "$url" -d "$data" -H "$headers"
+                curl -sS -A "Tailscale-Helper" "$url" -d "$data" -H "$headers"
             fi
         elif command -v wget > /dev/null; then
             if [ "$method" = "POST" ]; then
-                echo "$data" | wget --quiet --method=POST --body-file=- --header="$headers" "$url"
+                echo "$data" | wget --quiet --header="User-Agent: Tailscale-Helper" --method=POST --body-file=- --header="$headers" "$url"
             else
-                wget --quiet --post-data="$data" --header="$headers" "$url"
+                wget --quiet --header="User-Agent: Tailscale-Helper" --post-data="$data" --header="$headers" "$url"
             fi
         else
             log_error "❌  curl 和 wget 都不可用，无法发送通知"
@@ -184,14 +184,14 @@ send_notify() {
         url="${BARK_KEY}/${title_enc}/${content_enc}"
         
         if command -v curl > /dev/null; then
-            response=$(curl -sS "$url")
+            response=$(curl -sS -A "Tailscale-Helper" "$url")
             if [ $? -eq 0 ]; then
                 log_info "✅  Bark 通知已发送"
             else
                 log_error "❌  发送 Bark 通知失败，HTTP 状态码: $response"
             fi
         elif command -v wget > /dev/null; then
-            if wget --quiet --output-document=/dev/null "$url"; then
+            if wget --quiet --header="User-Agent: Tailscale-Helper" --output-document=/dev/null "$url"; then
                 log_info "✅  Bark 通知已发送"
             else
                 log_error "❌  发送 Bark 通知失败，wget 返回错误"

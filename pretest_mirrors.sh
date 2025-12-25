@@ -74,7 +74,7 @@ webget() {
     [ "$4" = "rediroff" ] && redirect=""
 
     if command -v curl >/dev/null 2>&1; then
-        timeout "$TIME_OUT" curl $quiet $redirect -o "$outfile" -H "User-Agent: Mozilla" "$url"
+        timeout "$TIME_OUT" curl $quiet $redirect -o "$outfile" -A "Tailscale-Helper" "$url"
         return $?
     fi
 
@@ -85,7 +85,7 @@ webget() {
         local r=""
         [ "$4" = "rediroff" ] && r="--max-redirect=0"
 
-        timeout "$TIME_OUT" wget $q $r --no-check-certificate -O "$outfile" "$url"
+        timeout "$TIME_OUT" wget $q $r --header="User-Agent: Tailscale-Helper" --no-check-certificate -O "$outfile" "$url"
         return $?
     fi
 

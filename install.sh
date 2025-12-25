@@ -24,8 +24,8 @@ SCRIPTS_TGZ_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/tail
 PRETEST_MIRRORS_SH_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/pretest_mirrors.sh"
 
 # 预先计算的校验和
-EXPECTED_CHECKSUM_SHA256="d77571de174003c09aa0ce3602c087cfd5a873d8cd62a79e68a121abf28d0bae"
-EXPECTED_CHECKSUM_MD5="9223cb925d9e61efb7eefd2668bf97c0"
+EXPECTED_CHECKSUM_SHA256="37ae1127e425beb9350508373931757effaa51717eebb9a900169ce289a3ff86"
+EXPECTED_CHECKSUM_MD5="7ad83e165744523668ce051b0833293c"
 
 log_info() {
     echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [INSTALL] [INFO] $1"
@@ -58,8 +58,17 @@ sync_time() {
         fi
     done
     log_warn "所有 NTP 服务器都失败，尝试使用 HTTP 头时间"
-    http_time=$(curl -I -s --connect-timeout 5 https://www.baidu.com | grep -i '^date:' | awk '{print $3,$4,$5,$6,$7}')
-    [ -n "$http_time" ] && date -D "%d %b %Y %H:%M:%S %Z" -s "$http_time" && log_info "已用 HTTP 头设置时间"
+    http_time=$(curl -I -s -A "Tailscale-Helper" --connect-timeout 5 https://www.baidu.com | grep -i '^date:' | awk '{
+        split("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec", months, " ");
+        for (i=1; i<=12; i++) m[months[i]] = i;
+        if ($3 ~ /^[0-9]+$/) {
+            printf "%04d-%02d-%02d %s", $5, m[$4], $3, $6
+        } else {
+            # 兼容没有星期几的情况
+            printf "%04d-%02d-%02d %s", $4, m[$3], $2, $5
+        }
+    }')
+    [ -n "$http_time" ] && date -u -s "$http_time" >/dev/null 2>&1 && log_info "已用 HTTP 头设置时间"
 }
 sync_time
 
@@ -204,7 +213,7 @@ webget() {
     [ "$4" = "rediroff" ] && redirect=""
 
     if command -v curl >/dev/null 2>&1; then
-        timeout "$TIME_OUT" curl $quiet $redirect -o "$outfile" -H "User-Agent: Mozilla" "$url"
+        timeout "$TIME_OUT" curl $quiet $redirect -o "$outfile" -A "Tailscale-Helper" "$url"
         return $?
     fi
 
@@ -215,7 +224,7 @@ webget() {
         local r=""
         [ "$4" = "rediroff" ] && r="--max-redirect=0"
 
-        timeout "$TIME_OUT" wget $q $r --no-check-certificate -O "$outfile" "$url"
+        timeout "$TIME_OUT" wget $q $r --header="User-Agent: Tailscale-Helper" --no-check-certificate -O "$outfile" "$url"
         return $?
     fi
 
