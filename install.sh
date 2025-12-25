@@ -24,8 +24,8 @@ SCRIPTS_TGZ_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/tail
 PRETEST_MIRRORS_SH_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/pretest_mirrors.sh"
 
 # 预先计算的校验和
-EXPECTED_CHECKSUM_SHA256="37ae1127e425beb9350508373931757effaa51717eebb9a900169ce289a3ff86"
-EXPECTED_CHECKSUM_MD5="7ad83e165744523668ce051b0833293c"
+EXPECTED_CHECKSUM_SHA256="252f9413aa8713eaf0714b778214c2a633923c1cadb830312d1376f061f13d70"
+EXPECTED_CHECKSUM_MD5="95f597263702d97cd13b5216b01a92ee"
 
 log_info() {
     echo -n "[$(date '+%Y-%m-%d %H:%M:%S')] [INSTALL] [INFO] $1"
