@@ -2,7 +2,7 @@
 
 set -o pipefail
 
-SCRIPT_VERSION="v1.1.3"
+SCRIPT_VERSION="v1.2.1"
 
 # 检查并引入 /etc/tailscale/tools.sh 文件
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh

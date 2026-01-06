@@ -86,15 +86,23 @@ show_status() {
     [ "${#val}" -gt "$max_val_len" ] && max_val_len=${#val}
     OPTIONS="${OPTIONS}
 $i|$key"
-    emoji="❌"
-    [ -n "$val" ] && emoji="✅"
-    if [ -n "$val" ]; then
-      printf "%2d) [%s] %-${max_key_len}s = %-${max_val_len}s # %s\n" \
-        "$i" "$emoji" "$key" "$val" "$desc"
+    
+    emoji="⭕"
+    status_text="[默认]"
+    if [ "$type" = "flag" ]; then
+      if [ "$val" = "true" ]; then
+        emoji="✅"
+        status_text="[启用]"
+      elif [ "$val" = "false" ]; then
+        emoji="❌"
+        status_text="[禁用]"
+      fi
     else
-      printf "%2d) [%s] %-${max_key_len}s   %*s# %s\n" \
-        "$i" "$emoji" "$key" $((max_val_len + 3)) "" "$desc"
+      [ -n "$val" ] && emoji="✅" && status_text="[$val]"
     fi
+
+    log_info "$(printf "%2d) %s %-${max_key_len}s = %-10s # %s" \
+      "$i" "$emoji" "$key" "$status_text" "$desc")"
     i=$((i + 1))
   done < /tmp/params_list.txt
   log_info "⏳  0) 退出   g) 生成带参数的 tailscale up 命令"
@@ -113,11 +121,14 @@ edit_param() {
 
   if [ "$type" = "flag" ]; then
     if [ -z "$val" ]; then
-      eval "$var_name=1"
-      log_info "✅  启用了 $key"
+      eval "$var_name=true"
+      log_info "✅  设置 $key 为 true"
+    elif [ "$val" = "true" ]; then
+      eval "$var_name=false"
+      log_info "❌  设置 $key 为 false"
     else
       unset $var_name
-      log_info "❌  禁用了 $key"
+      log_info "⚪  重置 $key 为默认值"
     fi
   else
     if [ -z "$val" ]; then
@@ -154,8 +165,8 @@ generate_cmd() {
     [ -z "$val" ] && continue
 
     if [ "$type" = "flag" ]; then
-      cmd="$cmd $key"
-      log_info "正在拼接命令: $key"
+      cmd="$cmd $key=$val"
+      log_info "正在拼接命令: $key=$val"
     else
       cmd="$cmd $key=$val"
       log_info "正在拼接命令: $key=$val"
