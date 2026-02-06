@@ -207,8 +207,14 @@ send_notify() {
         send_via_curl_or_wget "https://ntfy.sh/$NTFY_KEY" "$content" "POST" "$headers" && log_info "✅  NTFY 通知已发送"
     fi
 
+    # PushPlus
+    if [ "$NOTIFY_PUSHPLUS" = "1" ] && [ -n "$PUSHPLUS_TOKEN" ]; then
+        pushplus_data="{\"token\":\"$PUSHPLUS_TOKEN\",\"title\":\"$title\",\"content\":\"$content\",\"template\":\"txt\"}"
+        send_via_curl_or_wget "http://www.pushplus.plus/send" "$pushplus_data" "POST" "Content-Type: application/json" && log_info "✅  PushPlus 通知已发送"
+    fi
+
     # 无任何通知方式启用
-    if [ "$NOTIFY_SERVERCHAN" != "1" ] && [ "$NOTIFY_BARK" != "1" ] && [ "$NOTIFY_NTFY" != "1" ]; then
+    if [ "$NOTIFY_SERVERCHAN" != "1" ] && [ "$NOTIFY_BARK" != "1" ] && [ "$NOTIFY_NTFY" != "1" ] && [ "$NOTIFY_PUSHPLUS" != "1" ]; then
         log_error "❌  未启用任何通知方式"
     fi
 }

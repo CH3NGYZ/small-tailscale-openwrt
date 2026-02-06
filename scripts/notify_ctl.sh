@@ -20,6 +20,8 @@ NOTIFY_BARK=0
 BARK_KEY=""
 NOTIFY_NTFY=0
 NTFY_KEY=""
+NOTIFY_PUSHPLUS=0
+PUSHPLUS_TOKEN=""
 EOF
 fi
 
@@ -32,7 +34,8 @@ show_menu() {
     serverchan_status=$([ "$NOTIFY_SERVERCHAN" = "1" ] && echo "✅" || echo "❌")
     bark_status=$([ "$NOTIFY_BARK" = "1" ] && echo "✅" || echo "❌")
     ntfy_status=$([ "$NOTIFY_NTFY" = "1" ] && echo "✅" || echo "❌")
-    
+    pushplus_status=$([ "$NOTIFY_PUSHPLUS" = "1" ] && echo "✅" || echo "❌")
+
     # 获取其他通知配置
     update_status=$([ "$NOTIFY_UPDATE" = "1" ] && echo "✅" || echo "❌")
     mirror_fail_status=$([ "$NOTIFY_MIRROR_FAIL" = "1" ] && echo "✅" || echo "❌")
@@ -43,16 +46,18 @@ show_menu() {
     log_info "🔑  1).  设置Server酱SendKey      当前: ${SERVERCHAN_KEY}"
     log_info "🔑  2).  设置Bark的设备码         当前: ${BARK_KEY}"
     log_info "🔑  3).  设置ntfy的订阅码         当前: ${NTFY_KEY}"
+    log_info "🔑  4).  设置PushPlus的Token     当前: ${PUSHPLUS_TOKEN}"
     log_info "------------通知开关设置------------"
-    log_info "🔛  4).  切换Server酱通知开关     状态: $serverchan_status"
-    log_info "🔛  5).  切换Bark通知开关         状态: $bark_status"
-    log_info "🔛  6).  切换ntfy通知开关         状态: $ntfy_status"
+    log_info "🔛  5).  切换Server酱通知开关     状态: $serverchan_status"
+    log_info "🔛  6).  切换Bark通知开关         状态: $bark_status"
+    log_info "🔛  7).  切换ntfy通知开关         状态: $ntfy_status"
+    log_info "🔛  8).  切换PushPlus通知开关     状态: $pushplus_status"
     log_info "------------通知类型设置------------"
-    log_info "💬  7).  切换更新成功通知开关      状态: $update_status"
-    log_info "💬  8).  切换镜像失效通知开关      状态: $mirror_fail_status"
-    log_info "💬  9).  切换更新失败通知开关      状态: $emergency_status"
+    log_info "💬  9).  切换更新成功通知开关      状态: $update_status"
+    log_info "💬 10).  切换镜像失效通知开关      状态: $mirror_fail_status"
+    log_info "💬 11).  切换更新失败通知开关      状态: $emergency_status"
     log_info "-----------------------------------"
-    log_info "🔔 10).  发送测试通知"
+    log_info "🔔 12).  发送测试通知"
     log_info "❌  0).  退出"
     log_info "-----------------------------------"
 }
@@ -91,6 +96,18 @@ edit_ntfy() {
     fi
 }
 
+# 设置PushPlus的Token
+edit_pushplus() {
+    log_info "🔑  可以从 https://www.pushplus.plus 获取 PushPlus Token"
+    log_info "🔑  请输入 PushPlus Token: " 1
+    read pushplus_token
+    if grep -q "^PUSHPLUS_TOKEN=" "$NTF_CONF"; then
+        sed -i "s|^PUSHPLUS_TOKEN=.*|PUSHPLUS_TOKEN=\"$pushplus_token\"|" "$NTF_CONF"
+    else
+        echo "PUSHPLUS_TOKEN=\"$pushplus_token\"" >> "$NTF_CONF"
+    fi
+}
+
 # 切换配置开关（通用函数）
 toggle_setting() {
     local setting=$1
@@ -116,20 +133,22 @@ test_notify() {
 # 主菜单
 while :; do
     show_menu
-    log_info "📝 请选择 [1-10]: " 1
+    log_info "📝 请选择 [1-12]: " 1
     read choice
     case $choice in
         0) log_info "🚪  退出脚本" && exit 0 ;;
         1) edit_key ;;
         2) edit_bark ;;
         3) edit_ntfy ;;
-        4) toggle_setting "NOTIFY_SERVERCHAN" ;;
-        5) toggle_setting "NOTIFY_BARK" ;;
-        6) toggle_setting "NOTIFY_NTFY" ;;
-        7) toggle_setting "NOTIFY_UPDATE" true ;;
-        8) toggle_setting "NOTIFY_MIRROR_FAIL" true ;;
-        9) toggle_setting "NOTIFY_EMERGENCY" true ;;
-        10) test_notify ;;
+        4) edit_pushplus ;;
+        5) toggle_setting "NOTIFY_SERVERCHAN" ;;
+        6) toggle_setting "NOTIFY_BARK" ;;
+        7) toggle_setting "NOTIFY_NTFY" ;;
+        8) toggle_setting "NOTIFY_PUSHPLUS" ;;
+        9) toggle_setting "NOTIFY_UPDATE" true ;;
+        10) toggle_setting "NOTIFY_MIRROR_FAIL" true ;;
+        11) toggle_setting "NOTIFY_EMERGENCY" true ;;
+        12) test_notify ;;
         *) log_warn "❌  无效选择，请重新输入" ;;
     esac
 done

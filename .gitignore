@@ -1,0 +1,7 @@
+.claude
+.vscode
+.idea
+.DS_Store
+*.log
+*.tmp
+*.bak
