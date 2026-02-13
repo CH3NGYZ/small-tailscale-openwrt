@@ -8,16 +8,16 @@ A comprehensive solution for installing, configuring, and managing Tailscale on 
 
 ## 📋 Table of Contents
 
-- [Core Features](#core-features)
-- [Quick Start](#quick-start)
-- [Installation Modes](#installation-modes)
-- [Script Index](#script-index)
-- [Management Tools](#management-tools)
-- [Configuration Guide](#configuration-guide)
-- [FAQ](#faq)
-- [Log Locations](#log-locations)
-- [Notification System](#notification-system)
-- [Contributing & License](#contributing--license)
+- [Core Features](#-core-features)
+- [Quick Start](#-quick-start)
+- [Installation Modes](#-installation-modes)
+- [Script Index](#-script-index)
+- [Management Tools](#-management-tools)
+- [Configuration Guide](#-configuration-guide)
+- [FAQ](#-faq)
+- [Log Locations](#-log-locations)
+- [Notification System](#-notification-system)
+- [Contributing & License](#-contributing--license)
 
 ## ✨ Core Features
 
