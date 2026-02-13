@@ -170,29 +170,18 @@ tailscale-helper
 启用或禁用自动更新：
 
 ```bash
-# 交互模式
-$CONFIG_DIR/update_ctl.sh
-
-# 直接启用
-$CONFIG_DIR/update_ctl.sh on
-
-# 直接禁用
-$CONFIG_DIR/update_ctl.sh off
+# 通过菜单
+tailscale-helper
+# 选择选项 6 管理 Tailscale 自动更新
 ```
 
-### 代理切换
+### 代理切换指南
 
 在 GitHub 直连和代理模式之间切换：
 
 ```bash
-# 交互模式
-$CONFIG_DIR/github_direct_ctl.sh
-
-# 直接使用直连
-$CONFIG_DIR/github_direct_ctl.sh on
-
-# 直接使用代理
-$CONFIG_DIR/github_direct_ctl.sh off
+tailscale-helper
+# 选择选项 8 切换代理/直连状态
 ```
 
 ### 镜像测速
@@ -200,7 +189,8 @@ $CONFIG_DIR/github_direct_ctl.sh off
 手动测速并排序代理池：
 
 ```bash
-$CONFIG_DIR/test_mirrors.sh
+tailscale-helper
+# 选择选项 12 排序代理池
 ```
 
 ## ⚙️ 配置说明
@@ -304,7 +294,8 @@ crontab -l
 直接连接 GitHub，不经过代理：
 
 ```bash
-$CONFIG_DIR/github_direct_ctl.sh on
+tailscale-helper
+# 选择选项 8 切换代理/直连状态
 ```
 
 **优势**：速度快，无代理延迟
@@ -315,7 +306,8 @@ $CONFIG_DIR/github_direct_ctl.sh on
 通过代理镜像下载：
 
 ```bash
-$CONFIG_DIR/github_direct_ctl.sh off
+tailscale-helper
+# 选择选项 8 切换代理/直连状态
 ```
 
 **优势**：稳定可靠，支持国内访问
@@ -326,7 +318,8 @@ $CONFIG_DIR/github_direct_ctl.sh off
 系统会定期测速代理池，自动选择最快的镜像：
 
 ```bash
-$CONFIG_DIR/test_mirrors.sh
+tailscale-helper
+# 选择选项 12 排序代理池
 ```
 
 ## 📋 常见问题
@@ -353,7 +346,7 @@ tailscale-helper
 
 **A**: 检查以下几点：
 
-1. 确认自动更新已启用：`$CONFIG_DIR/update_ctl.sh`
+1. 确认自动更新已启用：`tailscale-helper` → 选项 6
 2. 检查定时任务：`crontab -l`
 3. 查看更新日志：`cat /tmp/tailscale_update.log`
 4. 确认网络连接正常
@@ -372,7 +365,9 @@ tailscale-helper
 **A**: 切换到 GitHub 直连模式：
 
 ```bash
-$CONFIG_DIR/github_direct_ctl.sh on
+# 通过菜单
+tailscale-helper
+# 选择选项 8 切换代理/直连状态
 ```
 
 ### Q6: 如何卸载 Tailscale？
@@ -382,12 +377,6 @@ $CONFIG_DIR/github_direct_ctl.sh on
 ```bash
 tailscale-helper
 # 选择选项 5 卸载 Tailscale
-```
-
-或直接运行：
-
-```bash
-$CONFIG_DIR/uninstall.sh
 ```
 
 ### Q7: 如何查看当前版本？

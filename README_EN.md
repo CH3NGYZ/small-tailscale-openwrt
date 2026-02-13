@@ -170,29 +170,20 @@ Execute `tailscale-helper` to open the main menu with the following options:
 Enable or disable auto-update:
 
 ```bash
-# Interactive mode
-$CONFIG_DIR/update_ctl.sh
-
-# Enable directly
-$CONFIG_DIR/update_ctl.sh on
-
-# Disable directly
-$CONFIG_DIR/update_ctl.sh off
+# Via menu
+tailscale-helper
+# Select option 6 to manage Tailscale auto-update
 ```
 
-### Proxy Switching
+### Proxy Switching Guide
 
 Toggle between GitHub direct connection and proxy modes:
 
+**Switch via menu**:
+
 ```bash
-# Interactive mode
-$CONFIG_DIR/github_direct_ctl.sh
-
-# Use direct connection
-$CONFIG_DIR/github_direct_ctl.sh on
-
-# Use proxy
-$CONFIG_DIR/github_direct_ctl.sh off
+tailscale-helper
+# Select option 8 to toggle proxy/direct connection mode
 ```
 
 ### Mirror Speed Testing
@@ -200,7 +191,8 @@ $CONFIG_DIR/github_direct_ctl.sh off
 Manually test speed and rank proxy pool:
 
 ```bash
-$CONFIG_DIR/test_mirrors.sh
+tailscale-helper
+# Select option 12 to sort proxy pool
 ```
 
 ## ⚙️ Configuration Guide
@@ -304,7 +296,8 @@ crontab -l
 Connect directly to GitHub without proxy:
 
 ```bash
-$CONFIG_DIR/github_direct_ctl.sh on
+tailscale-helper
+# Select option 8 to toggle proxy/direct connection mode
 ```
 
 **Advantages**: Fast speed, no proxy latency
@@ -315,7 +308,8 @@ $CONFIG_DIR/github_direct_ctl.sh on
 Download through proxy mirrors:
 
 ```bash
-$CONFIG_DIR/github_direct_ctl.sh off
+tailscale-helper
+# Select option 8 to toggle proxy/direct connection mode
 ```
 
 **Advantages**: Stable and reliable, supports domestic access
@@ -326,7 +320,8 @@ $CONFIG_DIR/github_direct_ctl.sh off
 The system periodically tests proxy pool and automatically selects the fastest mirror:
 
 ```bash
-$CONFIG_DIR/test_mirrors.sh
+tailscale-helper
+# Select option 12 to sort proxy pool
 ```
 
 ## ❓ FAQ
@@ -353,7 +348,7 @@ tailscale-helper
 
 **A**: Check the following:
 
-1. Confirm auto-update is enabled: `$CONFIG_DIR/update_ctl.sh`
+1. Confirm auto-update is enabled: `tailscale-helper` → Option 6
 2. Check scheduled tasks: `crontab -l`
 3. View update log: `cat /tmp/tailscale_update.log`
 4. Ensure network connectivity is normal
@@ -372,7 +367,9 @@ tailscale-helper
 **A**: Switch to GitHub direct connection mode:
 
 ```bash
-$CONFIG_DIR/github_direct_ctl.sh on
+# Via menu
+tailscale-helper
+# Select option 8 to toggle proxy/direct connection mode
 ```
 
 ### Q6: How to uninstall Tailscale?
@@ -382,12 +379,6 @@ $CONFIG_DIR/github_direct_ctl.sh on
 ```bash
 tailscale-helper
 # Select option 5 to uninstall Tailscale
-```
-
-Or run directly:
-
-```bash
-$CONFIG_DIR/uninstall.sh
 ```
 
 ### Q7: How to check current version?
