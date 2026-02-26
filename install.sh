@@ -42,11 +42,49 @@ log_error() {
     [ $# -eq 2 ] || echo
 }
 
-if ! command -v opkg >/dev/null 2>&1; then
-    log_error "❌  未检测到 opkg 命令，当前系统可能不是 OpenWRT 或缺少包管理器"
+PKG_MGR=""
+if command -v opkg >/dev/null 2>&1; then
+    PKG_MGR="opkg"
+elif command -v apk >/dev/null 2>&1; then
+    PKG_MGR="apk"
+else
+    log_error "❌  未检测到 opkg 或 apk 命令，当前系统可能不是 OpenWrt 或缺少包管理器"
     log_error "❌  无法继续执行安装脚本"
     exit 1
 fi
+
+pkg_list_installed() {
+    case "$PKG_MGR" in
+        opkg)
+            opkg list-installed
+            ;;
+        apk)
+            apk info -e
+            ;;
+    esac
+}
+
+pkg_update() {
+    case "$PKG_MGR" in
+        opkg)
+            opkg update
+            ;;
+        apk)
+            apk update
+            ;;
+    esac
+}
+
+pkg_install() {
+    case "$PKG_MGR" in
+        opkg)
+            opkg install "$1"
+            ;;
+        apk)
+            apk add "$1"
+            ;;
+    esac
+}
 
 sync_time() {
     log_info "正在同步系统时间..."
@@ -77,7 +115,7 @@ required_packages="libustream-openssl ca-bundle kmod-tun coreutils-timeout coreu
 need_install=0
 
 # 一次性获取已安装包列表（性能优化）
-installed_packages=$(opkg list-installed)
+installed_packages=$(pkg_list_installed)
 
 # 如果已安装 libustream-mbedtls，则跳过 libustream-openssl
 skip_openssl=0
@@ -100,11 +138,11 @@ done
 if [ "$need_install" -eq 0 ]; then
     log_info "✅  已安装所有必要组件"
 else
-    log_info "🔄  正在更新 opkg 源..."
-    if ! opkg update 2>&1; then
-        log_error "⚠️  opkg update 失败，请检查网络连接或源配置，继续执行..."
+    log_info "🔄  正在更新 $PKG_MGR 源..."
+    if ! pkg_update 2>&1; then
+        log_error "⚠️  $PKG_MGR update 失败，请检查网络连接或源配置，继续执行..."
     else
-        log_info "✅  opkg update 成功"
+        log_info "✅  $PKG_MGR update 成功"
     fi
 
     for package in $required_packages; do
@@ -116,7 +154,7 @@ else
 
         if ! echo "$installed_packages" | grep -q "^$package"; then
             log_warn "⚠️  包 $package 未安装，开始安装..."
-            if opkg install "$package" 2>&1; then
+            if pkg_install "$package" 2>&1; then
                 log_info "✅  包 $package 安装成功"
             else
                 # ★ 针对 jq 的特殊跳过逻辑 ★
@@ -129,7 +167,7 @@ else
                 if [ "$package" = "coreutils-timeout" ] || [ "$package" = "coreutils-nohup" ]; then
                     alt="coreutils"
                     log_warn "⚠️  安装 $package 失败，尝试安装 $alt 替代..."
-                    if opkg install $alt 2>&1; then
+                    if pkg_install $alt 2>&1; then
                         log_info "✅  $alt 安装成功，可能已包含 $(echo $package | cut -d- -f2) 命令"
                         continue
                     fi
