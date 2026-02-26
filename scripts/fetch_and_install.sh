@@ -92,36 +92,6 @@ download_file() {
 }
 
 
-verify_checksum() {
-    local file=$1
-    local expected=$2
-
-    local actual=""
-
-    if [ ${#expected} -eq 64 ]; then
-        actual=$(sha256sum "$file" | awk '{print $1}')
-        log_info "🔗  预期 SHA256: $expected"
-        log_info "🔗  计算 SHA256: $actual"
-    elif [ ${#expected} -eq 32 ]; then
-        actual=$(md5sum "$file" | awk '{print $1}')
-        log_info "🔗  预期 MD5: $expected"
-        log_info "🔗  计算 MD5: $actual"
-    else
-        log_info "🔗  预期: $expected"
-        log_warn "⚠️  未知校验长度，跳过校验"
-        return 0
-    fi
-
-    if [ "$expected" = "$actual" ]; then
-        log_info "✅  校验通过"
-        return 0
-    else
-        log_error "❌  校验失败"
-        return 1
-    fi
-}
-
-
 # 主安装流程
 install_tailscale() {
     local version=$1
@@ -193,14 +163,22 @@ done
 
 if [ "$VERSION" = "latest" ]; then
     set +e
-    while true; do
+    retry=0
+    max_retry=10
+    while [ $retry -lt $max_retry ]; do
         VERSION=$(get_latest_version)
         if [ $? -eq 0 ] && [ -n "$VERSION" ]; then
             break
         fi
-        sleep 1
+        retry=$((retry + 1))
+        log_warn "⚠️  获取最新版本失败 ($retry/$max_retry)，重试中..."
+        sleep 2
     done
     set -e
+    if [ -z "$VERSION" ]; then
+        log_error "❌  无法获取最新版本，已重试 $max_retry 次"
+        exit 1
+    fi
 fi
 
 # 干跑模式（只输出版本号）

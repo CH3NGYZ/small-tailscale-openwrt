@@ -40,7 +40,6 @@ AUTO_UPDATE=""
 VERSION="latest"
 ARCH=$(get_arch)
 HOST_NAME=$(uci show system.@system[0].hostname | awk -F"'" '{print $2}')
-GITHUB_DIRECT=$GITHUB_DIRECT
 
 has_args=false  # 🔧  新增：标记是否传入了参数
 if [ "$GITHUB_DIRECT" = "true" ] ; then

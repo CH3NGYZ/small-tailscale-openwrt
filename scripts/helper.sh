@@ -12,30 +12,14 @@ apply_github_mode
 HELPER_SCRIPT_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/scripts/helper.sh"
 INSTALL_SCRIPT_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh"
 
-get_download_tool() {
-    if command -v curl > /dev/null 2>&1; then
-        echo "curl"
-    elif command -v wget > /dev/null 2>&1; then
-        echo "wget"
-    else
-        log_info "❌  没有找到 curl 或 wget, 无法下载或执行操作。"
-        exit 1
-    fi
-}
-
-# 获取可用的下载工具
-download_tool=$(get_download_tool)
-
 get_remote_version() {
-    remote_ver_url="${CUSTOM_RAW_PROXY}/${HELPER_SCRIPT_URL_SUFFIX}"
+    local remote_ver_url="${CUSTOM_RAW_PROXY}/${HELPER_SCRIPT_URL_SUFFIX}"
+    local tmp_helper="/tmp/helper_remote.$$"
     log_info "获取远程文件: ${remote_ver_url}"
-    if [ "$download_tool" = "curl" ]; then
-        # 设置 5 秒超时
-        timeout 5 curl -sSL -A "Tailscale-Helper" "$remote_ver_url" | grep -E '^SCRIPT_VERSION=' | cut -d'"' -f2 > "$REMOTE_SCRIPTS_VERSION_FILE"
-    else
-        # 设置 5 秒超时
-        timeout 5 wget -qO- --header="User-Agent: Tailscale-Helper" "$remote_ver_url" | grep -E '^SCRIPT_VERSION=' | cut -d'"' -f2 > "$REMOTE_SCRIPTS_VERSION_FILE"
+    if webget "$tmp_helper" "$remote_ver_url" "echooff"; then
+        grep -E '^SCRIPT_VERSION=' "$tmp_helper" | cut -d'"' -f2 > "$REMOTE_SCRIPTS_VERSION_FILE"
     fi
+    rm -f "$tmp_helper"
 }
 
 # 显示菜单
@@ -140,8 +124,7 @@ handle_choice() {
                 rm -f "$tmp_log" "$pipe"
 
                 # 检查登录状态
-                tailscale status >/dev/null 2>&1
-                if [ $? -ne 0 ]; then
+                if ! tailscale status >/dev/null 2>&1; then
                     log_error "⚠️  tailscale 未登录或状态异常"
                 else
                     log_info "🎉  tailscale 登录成功，状态正常"
@@ -152,7 +135,7 @@ handle_choice() {
             read _
             ;;
         3)  
-            $CONFIG_DIR/tailscale_up_generater.sh
+            $CONFIG_DIR/tailscale_up_generator.sh
             ;;
         4)
             if ! command -v tailscale >/dev/null 2>&1; then
@@ -221,19 +204,14 @@ handle_choice() {
         13)
             URL="${CUSTOM_RAW_PROXY}/${INSTALL_SCRIPT_URL_SUFFIX}"
             tmpfile=$(mktemp)
-            if [ "$download_tool" = "curl" ]; then
-                curl -sSL -A "Tailscale-Helper" "$URL" -o "$tmpfile"
+            if webget "$tmpfile" "$URL" "echooff"; then
+                # exec 会替换当前进程，不会返回
+                exec sh "$tmpfile" < /dev/tty
             else
-                wget -qO "$tmpfile" --header="User-Agent: Tailscale-Helper" "$URL"
-            fi
-            if [ $? -ne 0 ]; then
                 log_error "❌ 脚本下载失败, 脚本内置作者的代理失效"
                 rm -f "$tmpfile"
                 log_info "✅  请按回车继续..." 1
                 read _
-            else
-                # exec 会替换当前进程，不会返回
-                exec sh "$tmpfile" < /dev/tty
             fi
             ;;
         14)

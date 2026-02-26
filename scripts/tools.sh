@@ -46,8 +46,6 @@ log_error() {
     [ $# -eq 2 ] || echo
 }
 
-
-
 # 安全加载配置文件
 safe_source() {
     local file="$1"
@@ -113,25 +111,56 @@ webget() {
     return 1
 }
 
-# URL 编码函数 (POSIX 兼容)
+# 校验函数, 自动根据长度判断类型, 支持 openssl 回退
+verify_checksum() {
+    local file=$1
+    local expected=$2
+    local actual=""
+
+    if [ ${#expected} -eq 64 ]; then
+        if command -v sha256sum >/dev/null 2>&1; then
+            actual=$(sha256sum "$file" | awk '{print $1}')
+        elif command -v openssl >/dev/null 2>&1; then
+            actual=$(openssl dgst -sha256 "$file" | awk '{print $2}')
+        else
+            log_warn "⚠️  缺少 sha256sum 或 openssl，跳过校验"
+            return 0
+        fi
+    elif [ ${#expected} -eq 32 ]; then
+        if command -v md5sum >/dev/null 2>&1; then
+            actual=$(md5sum "$file" | awk '{print $1}')
+        elif command -v openssl >/dev/null 2>&1; then
+            actual=$(openssl dgst -md5 "$file" | awk '{print $2}')
+        else
+            log_warn "⚠️  缺少 md5sum 或 openssl，跳过校验"
+            return 0
+        fi
+    else
+        log_warn "⚠️  未知校验长度 (${#expected})，跳过校验"
+        return 0
+    fi
+
+    if [ "$expected" = "$actual" ]; then
+        log_info "✅  校验通过"
+        return 0
+    else
+        log_error "❌  校验失败！预期: $expected, 实际: $actual"
+        return 1
+    fi
+}
+
+# URL 编码函数 (纯 shell 内建操作, 无外部命令依赖)
 urlencode() {
-    local str="$1"
-    local encoded=""
-    local i=0
-    local length=${#str}
-    while [ $i -lt $length ]; do
-        local c=$(printf '%s' "$str" | cut -c$((i + 1)))
+    local str="$1" c rest
+    rest="$str"
+    while [ -n "$rest" ]; do
+        c="${rest%"${rest#?}"}"
+        rest="${rest#?}"
         case "$c" in
-            [a-zA-Z0-9._~-]) 
-                encoded="${encoded}${c}"
-                ;;
-            *)
-                encoded="${encoded}$(printf '%%%02X' "'$c")"
-                ;;
+            [A-Za-z0-9._~-]) printf '%s' "$c" ;;
+            *) printf '%%%02X' "'$c" ;;
         esac
-        i=$((i + 1))
     done
-    printf '%s' "$encoded"
 }
 
 
@@ -146,6 +175,8 @@ send_notify() {
     safe_source "$NTF_CONF"  # 引入配置文件
 
     # 通用发送函数（curl 优先，wget 兼容）
+    # 用法: send_via_curl_or_wget URL [DATA] [METHOD] [HEADER]
+    # METHOD: GET / POST(默认当有DATA时)
     send_via_curl_or_wget() {
         local url="$1"
         local data="$2"
@@ -153,16 +184,16 @@ send_notify() {
         local headers="$4"
 
         if command -v curl > /dev/null; then
-            if [ "$method" = "POST" ]; then
-                curl -sS -A "Tailscale-Helper" -X POST "$url" -d "$data" -H "$headers"
+            if [ "$method" = "GET" ] || [ -z "$data" ]; then
+                curl -sS -A "Tailscale-Helper" "$url"
             else
-                curl -sS -A "Tailscale-Helper" "$url" -d "$data" -H "$headers"
+                curl -sS -A "Tailscale-Helper" -X POST "$url" -d "$data" -H "$headers"
             fi
         elif command -v wget > /dev/null; then
-            if [ "$method" = "POST" ]; then
-                echo "$data" | wget --quiet --header="User-Agent: Tailscale-Helper" --method=POST --body-file=- --header="$headers" "$url"
+            if [ "$method" = "GET" ] || [ -z "$data" ]; then
+                wget --quiet --header="User-Agent: Tailscale-Helper" -O /dev/null "$url"
             else
-                wget --quiet --header="User-Agent: Tailscale-Helper" --post-data="$data" --header="$headers" "$url"
+                echo "$data" | wget --quiet --header="User-Agent: Tailscale-Helper" --method=POST --body-file=- --header="$headers" "$url"
             fi
         else
             log_error "❌  curl 和 wget 都不可用，无法发送通知"
@@ -180,25 +211,8 @@ send_notify() {
     if [ "$NOTIFY_BARK" = "1" ] && [ -n "$BARK_KEY" ]; then
         title_enc=$(urlencode "$title")
         content_enc=$(urlencode "$content")
-        
-        url="${BARK_KEY}/${title_enc}/${content_enc}"
-        
-        if command -v curl > /dev/null; then
-            response=$(curl -sS -A "Tailscale-Helper" "$url")
-            if [ $? -eq 0 ]; then
-                log_info "✅  Bark 通知已发送"
-            else
-                log_error "❌  发送 Bark 通知失败，HTTP 状态码: $response"
-            fi
-        elif command -v wget > /dev/null; then
-            if wget --quiet --header="User-Agent: Tailscale-Helper" --output-document=/dev/null "$url"; then
-                log_info "✅  Bark 通知已发送"
-            else
-                log_error "❌  发送 Bark 通知失败，wget 返回错误"
-            fi
-        else
-            log_error "❌  curl 和 wget 都不可用，无法发送 Bark 通知"
-        fi
+        bark_url="${BARK_KEY}/${title_enc}/${content_enc}"
+        send_via_curl_or_wget "$bark_url" "" "GET" && log_info "✅  Bark 通知已发送"
     fi
 
     # ntfy
@@ -217,4 +231,21 @@ send_notify() {
     if [ "$NOTIFY_SERVERCHAN" != "1" ] && [ "$NOTIFY_BARK" != "1" ] && [ "$NOTIFY_NTFY" != "1" ] && [ "$NOTIFY_PUSHPLUS" != "1" ]; then
         log_error "❌  未启用任何通知方式"
     fi
+}
+
+# 检查是否需要发送通知
+should_notify() {
+    local notify_type=$1
+    safe_source "$NTF_CONF"
+    local notify_var
+    case "$notify_type" in
+        "update") notify_var="$NOTIFY_UPDATE" ;;
+        "mirror_fail") notify_var="$NOTIFY_MIRROR_FAIL" ;;
+        "emergency") notify_var="$NOTIFY_EMERGENCY" ;;
+        *)
+            log_error "❌  未知通知类型: $notify_type"
+            return 1
+            ;;
+    esac
+    [ "$notify_var" = "1" ]
 }

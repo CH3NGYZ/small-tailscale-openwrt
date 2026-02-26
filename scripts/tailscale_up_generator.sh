@@ -3,6 +3,8 @@
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh
 CONFIG_DIR="/etc/tailscale"
 CONF_FILE="$CONFIG_DIR/tailscale_up.conf"
+TMP_PARAMS="/tmp/params_list.$$"
+trap 'rm -f "$TMP_PARAMS"' EXIT
 
 PARAMS_LIST="--accept-dns:flag:接受来自管理面板的 DNS 配置（默认 true）
 --accept-risk:value:接受风险类型并跳过确认（lose-ssh、mac-app-connector、linux-strict-rp-filter、all）
@@ -74,7 +76,7 @@ show_status() {
   max_val_len=0
   i=1
   OPTIONS=""
-  echo "$PARAMS_LIST" > /tmp/params_list.txt
+  echo "$PARAMS_LIST" > "$TMP_PARAMS"
   while IFS= read -r line; do
     [ -z "$line" ] && continue
     key=$(echo "$line" | cut -d':' -f1)
@@ -104,7 +106,7 @@ $i|$key"
     log_info "$(printf "%2d) %s %-${max_key_len}s = %-10s # %s" \
       "$i" "$emoji" "$key" "$status_text" "$desc")"
     i=$((i + 1))
-  done < /tmp/params_list.txt
+  done < "$TMP_PARAMS"
   log_info "⏳  0) 退出   g) 生成带参数的 tailscale up 命令"
   log_info "⏳  输入编号后回车即可修改: " 1
 }
@@ -164,13 +166,8 @@ generate_cmd() {
     eval val=\$$var_name
     [ -z "$val" ] && continue
 
-    if [ "$type" = "flag" ]; then
-      cmd="$cmd $key=$val"
-      log_info "正在拼接命令: $key=$val"
-    else
-      cmd="$cmd $key=$val"
-      log_info "正在拼接命令: $key=$val"
-    fi
+    cmd="$cmd $key=$val"
+    log_info "正在拼接命令: $key=$val"
   done < "$temp_file"
 
   rm -f "$temp_file"

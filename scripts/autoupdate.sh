@@ -23,31 +23,6 @@ remote=$("$CONFIG_DIR/fetch_and_install.sh" --dry-run)
 recorded=""
 [ -f "$VERSION_FILE" ] && recorded=$(cat "$VERSION_FILE")
 
-# 加载通知配置
-[ -f $CONFIG_DIR/notify.conf ] && . $CONFIG_DIR/notify.conf
-
-
-# 检查是否需要发送通知的函数
-should_notify() {
-    local notify_type=$1
-    local notify_var
-    case "$notify_type" in
-        "update") notify_var="$NOTIFY_UPDATE" ;;
-        "mirror_fail") notify_var="$NOTIFY_MIRROR_FAIL" ;;
-        "emergency") notify_var="$NOTIFY_EMERGENCY" ;;
-        *)
-            log_error "❌  未知通知类型: $notify_type"
-            return 1
-            ;;
-    esac
-    # 检查是否启用通知
-    if [ "$notify_var" = "1" ]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
 # local 模式逻辑
 if [ "$MODE" = "local" ]; then
   if [ "$AUTO_UPDATE" = "true" ]; then

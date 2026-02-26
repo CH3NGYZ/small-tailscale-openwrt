@@ -82,7 +82,7 @@ if [ -s "$TMP_VALID_MIRRORS" ]; then
     sort -n "$TMP_VALID_MIRRORS" | awk '{print $2}' > "$VALID_MIRRORS"
     log_info "🏆 最佳镜像: $(head -n1 "$VALID_MIRRORS")"
 else
-    if should_notify_mirror_fail; then
+    if should_notify "mirror_fail"; then
         send_notify "❌  所有镜像均失效" "请手动配置代理"
     fi
 fi

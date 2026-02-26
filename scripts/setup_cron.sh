@@ -45,9 +45,9 @@ log_info "⏰  镜像维护任务运行时间已设定为 $RANDOM_HOUR 点 $RAND
 # 自动更新任务（4~6）
 UPDATE_HOUR=$((4 + $(awk -v seed=$(date +%s) 'BEGIN{srand(seed+2000); print int(rand()*3)}')))
 UPDATE_MIN=$(awk -v seed=$(date +%s) 'BEGIN{srand(seed+3000); print int(rand()*60)}')
-while [ "$RANDOM_MIN" -eq "$UPDATE_MIN" ]; do
-    UPDATE_MIN=$(awk -v seed=$(date +%s) 'BEGIN{srand(seed+3000); print int(rand()*60)}')
-done
+if [ "$RANDOM_MIN" -eq "$UPDATE_MIN" ]; then
+    UPDATE_MIN=$(( (UPDATE_MIN + 7) % 60 ))
+fi
 
 # 添加自动更新任务
 log_info "⏰  添加自动更新任务..."
