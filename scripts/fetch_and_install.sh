@@ -3,6 +3,7 @@
 set -e
 
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh && safe_source "$INST_CONF"
+ensure_arch || exit 1
 apply_github_mode
 
 GITHUB_API_LATEST_RELEASE_URL_SUFFIX="repos/CH3NGYZ/small-tailscale-openwrt/releases/latest"

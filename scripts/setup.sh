@@ -11,34 +11,11 @@ apply_github_mode
 
 GITHUB_API_RELEASE_LIST_URL_SUFFIX="repos/ch3ngyz/small-tailscale-openwrt/releases"
 
-get_arch() {
-    arch_raw=$(uname -m)
-    case "$arch_raw" in
-        i386|i686) arch="386" ;;       # 32位 x86
-        x86_64)    arch="amd64" ;;     # 64位 x86
-
-        armv7l|armv7|armhf|armv6l) arch="arm" ;;  # 32位 ARM
-        aarch64|arm64|armv8l)     arch="arm64" ;; # 64位 ARM
-
-        mips)         arch="mips" ;;       # 32位 MIPS big-endian
-        mipsel|mipsel_24kc) arch="mipsle" ;;  # 32位 MIPS little-endian
-        mips64)       arch="mips64" ;;    # 64位 MIPS big-endian
-        mips64el)     arch="mips64le" ;;  # 64位 MIPS little-endian
-
-        *)
-            echo "❌ 不支持的架构: $arch_raw, 请提交issue!"
-            echo "https://github.com/CH3NGYZ/small-tailscale-openwrt/issues"
-            exit 1
-            ;;
-    esac
-    echo "$arch"
-}
-
 # 默认值
 MODE=""
 AUTO_UPDATE=""
 VERSION="latest"
-ARCH=$(get_arch)
+ARCH=$(detect_arch)
 HOST_NAME=$(uci show system.@system[0].hostname | awk -F"'" '{print $2}')
 
 has_args=false  # 🔧  新增：标记是否传入了参数

@@ -11,8 +11,10 @@ fi
 set_proxy_mode
 
 TIME_OUT=20
+ensure_arch || exit 1
+
 SUM_FILE_NAME="SHA256SUMS.txt"
-BIN_FILE_NAME="tailscaled-linux-amd64"
+BIN_FILE_NAME="tailscaled-linux-$ARCH"
 SUM_FILE_PATH="/tmp/$SUM_FILE_NAME"
 BIN_FILE_PATH="/tmp/$BIN_FILE_NAME"
 MIRROR_FILE_URL_SUFFIX="CH3NGYZ/test-github-proxies/raw/refs/heads/main/proxies.txt"
@@ -30,6 +32,7 @@ if ! webget "$SUM_FILE_PATH" "$SUM_URL_PROXY" "echooff"; then
 fi
 
 sha_expected=$(grep "$BIN_FILE_NAME" "$SUM_FILE_PATH" | grep -v "$BIN_FILE_NAME.build" | awk '{print $1}')
+[ -z "$sha_expected" ] && log_error "❌  无法从校验文件解析 $BIN_FILE_NAME 的 sha256" && exit 1
 
 # 镜像测试函数（下载并验证 tailscaled）
 test_mirror() {
@@ -37,13 +40,13 @@ test_mirror() {
     local progress="$2"  # 当前/总数
     log_info "⏳  测试[$progress] $mirror"
 
-    local start=$(date +%s.%N)
+    local start=$(now_uptime)
 
     if webget "$BIN_FILE_PATH" "${mirror}$BIN_FILE_SUFFIX" "echooff" ; then
-        sha_actual=$(sha256sum "$BIN_FILE_PATH" | awk '{print $1}')
-        if [ "$sha_expected" = "$sha_actual" ]; then
-            local end=$(date +%s.%N)
-            local dl_time=$(awk "BEGIN {printf \"%.2f\", $end - $start}")
+        sha_actual=$(sha256_file "$BIN_FILE_PATH" 2>/dev/null || echo "")
+        if [ -n "$sha_actual" ] && [ "$sha_expected" = "$sha_actual" ]; then
+            local end=$(now_uptime)
+            local dl_time=$(calc_elapsed "$start" "$end")
             log_info "✅  用时 ${dl_time}s"
             echo "$dl_time $mirror" >> "$TMP_VALID_MIRRORS"
         else

@@ -139,7 +139,7 @@ tailscale-helper
 | [`fetch_and_install.sh`](scripts/fetch_and_install.sh)           | 下载和安装 Tailscale 二进制文件  | 由其他脚本调用               |
 | [`notify_ctl.sh`](scripts/notify_ctl.sh)                         | 通知系统配置管理                 | `tailscale-helper` → 选项 11 |
 | [`tools.sh`](scripts/tools.sh)                                   | 公共函数库（日志、下载、通知等） | 被所有脚本引入               |
-| [`tailscale_up_generater.sh`](scripts/tailscale_up_generater.sh) | 生成 Tailscale 启动命令          | `tailscale-helper` → 选项 3  |
+| [`tailscale_up_generator.sh`](scripts/tailscale_up_generator.sh) | 生成 Tailscale 启动命令          | `tailscale-helper` → 选项 3  |
 
 ## 🎛️ 管理工具
 

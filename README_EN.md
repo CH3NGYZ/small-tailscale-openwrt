@@ -139,7 +139,7 @@ tailscale-helper
 | [`fetch_and_install.sh`](scripts/fetch_and_install.sh)           | Download and install Tailscale binary                               | Called by other scripts        |
 | [`notify_ctl.sh`](scripts/notify_ctl.sh)                         | Notification system configuration management                        | `tailscale-helper` → Option 11 |
 | [`tools.sh`](scripts/tools.sh)                                   | Common function library (logging, downloading, notifications, etc.) | Sourced by all scripts         |
-| [`tailscale_up_generater.sh`](scripts/tailscale_up_generater.sh) | Generate Tailscale startup command                                  | `tailscale-helper` → Option 3  |
+| [`tailscale_up_generator.sh`](scripts/tailscale_up_generator.sh) | Generate Tailscale startup command                                  | `tailscale-helper` → Option 3  |
 
 ## 🎛️ Management Tools
 

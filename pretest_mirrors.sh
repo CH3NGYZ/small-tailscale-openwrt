@@ -8,8 +8,10 @@ set -o pipefail
 TIME_OUT=20
 CONFIG_DIR="/etc/tailscale"
 INST_CONF="$CONFIG_DIR/install.conf"
+GLOBAL_DIRECT_MODE=0
 
-BIN_NAME="tailscaled-linux-amd64"
+ensure_arch || exit 1
+BIN_NAME="tailscaled-linux-$ARCH"
 BIN_PATH="/tmp/$BIN_NAME"
 SUM_NAME="SHA256SUMS.txt"
 SUM_PATH="/tmp/$SUM_NAME"
@@ -148,6 +150,7 @@ download_with_retry() {
 }
 
 force_direct_mode() {
+    GLOBAL_DIRECT_MODE=1
     set_direct_mode
     sed -i -e '/^GITHUB_DIRECT=/d' -e '$aGITHUB_DIRECT=true' "$INST_CONF" 2>/dev/null || true
     : > "$VALID_MIRRORS_PATH"
@@ -219,22 +222,22 @@ test_mirror() {
     local url="${mirror}${BIN_URL_SUFFIX}"
     log_info "⏳  测试[$progress] $url"
 
-    local start=$(date +%s.%N)
+    local start=$(now_uptime)
     if ! webget "$BIN_PATH" "$url" "echooff"; then
         log_warn "❌  下载失败"
         return
     fi
 
     local sha_actual
-    sha_actual=$(sha256sum "$BIN_PATH" | awk '{print $1}')
+    sha_actual=$(sha256_file "$BIN_PATH" 2>/dev/null || echo "")
 
-    if [ "$sha_expected" != "$sha_actual" ]; then
+    if [ -z "$sha_actual" ] || [ "$sha_expected" != "$sha_actual" ]; then
         log_warn "❌  SHA256 错误：$sha_actual"
         return
     fi
 
-    local end=$(date +%s.%N)
-    local cost=$(awk "BEGIN {printf \"%.2f\", $end - $start}")
+    local end=$(now_uptime)
+    local cost=$(calc_elapsed "$start" "$end")
     log_info "✅  通过，用时 ${cost}s"
 
     echo "$cost $mirror" >> "$TMP_VALID_MIRRORS_PATH"

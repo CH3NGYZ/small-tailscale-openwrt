@@ -2,12 +2,13 @@
 
 set -o pipefail
 
-SCRIPT_VERSION="v1.2.1"
+SCRIPT_VERSION="v1.2.2"
 
 # 检查并引入 /etc/tailscale/tools.sh 文件
 [ -f /etc/tailscale/tools.sh ] && . /etc/tailscale/tools.sh
 safe_source "$INST_CONF"
 apply_github_mode
+ensure_arch || exit 1
 
 HELPER_SCRIPT_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/scripts/helper.sh"
 INSTALL_SCRIPT_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/install.sh"

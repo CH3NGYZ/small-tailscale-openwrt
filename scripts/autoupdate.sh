@@ -11,7 +11,7 @@ remote=""
 safe_source "$INST_CONF"
 
 [ -z "$MODE" ] && log_error "❌  缺少 MODE 配置" && exit 1
-[ -z "$ARCH" ] && ARCH="$(uname -m)"
+ensure_arch || exit 1
 [ -z "$current" ] && current="latest"
 
 [ "$AUTO_UPDATE" = "true" ] && auto_update_enabled=1 || auto_update_enabled=0

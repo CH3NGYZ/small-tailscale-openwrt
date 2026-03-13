@@ -12,6 +12,34 @@ TMP_VALID_MIRRORS="/tmp/valid_mirrors.tmp"
 REMOTE_SCRIPTS_VERSION_FILE="$CONFIG_DIR/remote_ts_scripts_version"
 TIME_OUT=30
 
+# 架构探测（统一入口）
+detect_arch() {
+    local arch_raw="${1:-$(uname -m)}"
+    case "$arch_raw" in
+        i386|i686) echo "386" ;;       # 32 位 x86
+        x86_64)    echo "amd64" ;;     # 64 位 x86
+        armv7l|armv7|armhf|armv6l) echo "arm" ;;   # 32 位 ARM
+        aarch64|arm64|armv8l)     echo "arm64" ;;  # 64 位 ARM
+        mips)                     echo "mips" ;;   # 32 位 MIPS big-endian
+        mipsel|mipsel_24kc)       echo "mipsle" ;; # 32 位 MIPS little-endian
+        mips64)                   echo "mips64" ;; # 64 位 MIPS big-endian
+        mips64el)                 echo "mips64le" ;; # 64 位 MIPS little-endian
+        *)
+            log_error "❌  不支持的架构: $arch_raw"
+            log_error "❌  请在 https://github.com/CH3NGYZ/small-tailscale-openwrt/issues 反馈此架构"
+            return 1
+            ;;
+    esac
+}
+
+# 如果未在配置中指定 ARCH，则尝试自动探测一次（懒加载）
+ensure_arch() {
+    if [ -n "$ARCH" ]; then
+        return 0
+    fi
+    ARCH="$(detect_arch)" || return 1
+}
+
 # GitHub 代理模式配置
 set_direct_mode() {
     CUSTOM_RELEASE_PROXY="https://github.com"
@@ -147,6 +175,48 @@ verify_checksum() {
         log_error "❌  校验失败！预期: $expected, 实际: $actual"
         return 1
     fi
+}
+
+# 读取系统启动时间（优先 /proc/uptime，提供更细粒度的耗时计算）
+now_uptime() {
+    if [ -r /proc/uptime ]; then
+        awk '{print $1}' /proc/uptime
+    else
+        date +%s
+    fi
+}
+
+# 计算耗时（保留 2 位小数）
+calc_elapsed() {
+    local start="$1"
+    local end="$2"
+    awk -v s="$start" -v e="$end" 'BEGIN{printf "%.2f", (e - s)}'
+}
+
+sha256_file() {
+    local file="$1"
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$file" | awk '{print $1}'
+        return 0
+    fi
+    if command -v openssl >/dev/null 2>&1; then
+        openssl dgst -sha256 "$file" | awk '{print $2}'
+        return 0
+    fi
+    return 1
+}
+
+md5_file() {
+    local file="$1"
+    if command -v md5sum >/dev/null 2>&1; then
+        md5sum "$file" | awk '{print $1}'
+        return 0
+    fi
+    if command -v openssl >/dev/null 2>&1; then
+        openssl dgst -md5 "$file" | awk '{print $2}'
+        return 0
+    fi
+    return 1
 }
 
 # URL 编码函数 (纯 shell 内建操作, 无外部命令依赖)
