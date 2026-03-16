@@ -75,7 +75,8 @@ pkg_is_installed() {
     # $1: pkg name
     local pkg="$1"
     case "$PKG_MGR" in
-        opkg) echo "$INSTALLED_PKGS" | grep -q "^${pkg} -" ;;
+        # 允许数字后缀（如 libustream-mbedtls20201210）
+        opkg) echo "$INSTALLED_PKGS" | grep -Eq "^${pkg}([0-9]+)? -" ;;
         apk) echo "$INSTALLED_PKGS" | grep -qx "$pkg" ;;
     esac
 }
@@ -169,8 +170,8 @@ OPTIONAL_PACKAGES=""
 
 case "$PKG_MGR" in
     opkg)
-        # 如果已安装 libustream-mbedtls，则跳过 libustream-openssl
-        if echo "$INSTALLED_PKGS" | grep -q "^libustream-mbedtls -"; then
+        # 如果已安装 libustream-mbedtls（含数字后缀），则跳过 libustream-openssl
+        if pkg_is_installed "libustream-mbedtls"; then
             SKIP_OPENSSL=1
         else
             SKIP_OPENSSL=0
