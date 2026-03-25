@@ -29,8 +29,8 @@ SCRIPTS_TGZ_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/tail
 PRETEST_MIRRORS_SH_URL_SUFFIX="CH3NGYZ/small-tailscale-openwrt/raw/refs/heads/main/pretest_mirrors.sh"
 
 # 预先计算的校验和（由 GitHub Actions 自动回填）
-EXPECTED_CHECKSUM_SHA256="a0960cbe05df6188f3c89e2ccf4b77c93e0baa9d9da4d4398a01cc267ede1ee7"
-EXPECTED_CHECKSUM_MD5="aaaf3f96927e34356dfd5f10e60e7718"
+EXPECTED_CHECKSUM_SHA256="b8c8f03622fc4713f88feef91736a1a9e300e7d084a4dc0509c73741745a214e"
+EXPECTED_CHECKSUM_MD5="7d41dc055af55bb87af92e7de5b4dc35"
 
 # -------------------- 日志 --------------------
 log_info() {
