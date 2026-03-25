@@ -21,7 +21,8 @@ rm -rf \
     /usr/bin/tailscaled \
     /usr/local/bin/tailscale* \
     /tmp/tailscaled \
-    /var/lib/tailscale*
+    /var/lib/tailscale* \
+    "$VERSION_FILE"
 
 # 删除 Tailscale 网络接口
 ip link delete tailscale0 2>/dev/null || true
