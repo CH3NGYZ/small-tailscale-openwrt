@@ -15,19 +15,52 @@ TIME_OUT=30
 # 架构探测（统一入口）
 detect_arch() {
     local arch_raw="${1:-$(uname -m)}"
+    local arch=""
+    local endian=""
+
     case "$arch_raw" in
-        i386|i686) echo "386" ;;       # 32 位 x86
-        x86_64)    echo "amd64" ;;     # 64 位 x86
-        armv7l|armv7|armhf|armv6l) echo "arm" ;;   # 32 位 ARM
-        aarch64|arm64|armv8l)     echo "arm64" ;;  # 64 位 ARM
-        mips)                     echo "mips" ;;   # 32 位 MIPS big-endian
-        mipsel|mipsel_24kc)       echo "mipsle" ;; # 32 位 MIPS little-endian
-        mips64)                   echo "mips64" ;; # 64 位 MIPS big-endian
-        mips64el)                 echo "mips64le" ;; # 64 位 MIPS little-endian
+        i386|i486|i586|i686)
+            arch="386"
+            ;;
+        x86_64)
+            arch="amd64"
+            ;;
+        armv7l|armv7|armhf|armv6l)
+            arch="arm"
+            ;;
+        aarch64|arm64|armv8l)
+            arch="arm64"
+            ;;
+        mips|mipsel|mipsel_24kc|mips64|mips64el)
+            arch="$arch_raw"
+            ;;
         *)
             log_error "❌  不支持的架构: $arch_raw"
             log_error "❌  请在 https://github.com/CH3NGYZ/small-tailscale-openwrt/issues 反馈此架构"
             return 1
+            ;;
+    esac
+
+    case "$arch" in
+        mips)
+            if command -v hexdump >/dev/null 2>&1 && command -v awk >/dev/null 2>&1; then
+                endian=$(echo -n I | hexdump -o 2>/dev/null | awk '{ print (substr($2,6,1)=="1") ? "le" : ""; exit }')
+                echo "mips${endian}"
+            else
+                echo "mips"
+            fi
+            ;;
+        mipsel|mipsel_24kc)
+            echo "mipsle"
+            ;;
+        mips64)
+            echo "mips64"
+            ;;
+        mips64el)
+            echo "mips64le"
+            ;;
+        *)
+            echo "$arch"
             ;;
     esac
 }
