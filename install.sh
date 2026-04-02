@@ -182,8 +182,7 @@ case "$PKG_MGR" in
         OPTIONAL_PACKAGES="jq"
         ;;
     apk)
-        # Alpine 环境仅尽可能保证基础命令存在（此项目主要面向 OpenWrt/opkg）
-        REQUIRED_PACKAGES="ca-certificates curl coreutils"
+        REQUIRED_PACKAGES="ca-certificates curl coreutils-timeout coreutils-nohup"
         OPTIONAL_PACKAGES="jq"
         ;;
     *)
